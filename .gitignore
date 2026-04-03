@@ -233,3 +233,5 @@ $RECYCLE.BIN/
 yarn.lock
 **/wwwroot/app/
 *.etl
+/change_git.exe
+/test.bat
