@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package secs4net.flows.grpc;
+
+option csharp_namespace = "Secs4Net.Flows.GrpcHost.Protos";
+
+// 外部系统通过 gRPC 提交「逻辑请求」，Host 内部转换为 SECS-II 主消息并由 HSMS 发往 Fab 设备。
+service FlowBridge {
+  // 发送一条主消息（可选等待次消息）。
+  rpc SendPrimary (SendPrimaryRequest) returns (SendPrimaryReply);
+}
+
+message SendPrimaryRequest {
+  uint32 stream = 1;
+  uint32 function = 2;
+  bool reply_expected = 3;
+  string name = 4;
+  // 对应通用 FlowSendRequest.AsciiPayload；二进制/复杂结构可后续扩展 bytes 或嵌套 message。
+  string ascii_payload = 5;
+}
+
+message SendPrimaryReply {
+  bool ok = 1;
+  string error = 2;
+  uint32 reply_stream = 3;
+  uint32 reply_function = 4;
+  string reply_summary = 5;
+}
