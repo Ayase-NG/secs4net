@@ -1,6 +1,8 @@
 ﻿using Microsoft.Extensions.Options;
 using Secs4Net;
 using Secs4Net.Sml;
+using SECSparser;
+using SECShandler;
 using System;
 using System.ComponentModel;
 using System.Drawing;
@@ -66,11 +68,43 @@ public partial class Form1 : Form
         _connector.Start(_cancellationTokenSource.Token);
         btnDisable.Enabled = true;
 
+        // 创建测试用设备实现和通信处理器，用于将解析后的数据传递给 Handler 进行处理
+        var testDevice = new TestDevice();
+        var commHandler = new CommunicationHandler(_secsGem!, testDevice);
+
         try
         {
             await foreach (var primaryMessage in _secsGem.GetPrimaryMessageAsync(_cancellationTokenSource.Token))
             {
                 recvBuffer.Add(primaryMessage);
+                var msg = primaryMessage.PrimaryMessage;
+                // 自动响应部分特殊主消息，便于在本地进行握手流程测试：
+                // - 当接收到 S1F13（Establish Communications Request）时，自动回复 S1F14（Establish Communications Acknowledge），内容为硬编码值
+                // - 当接收到 S1F1（AreYouThere）时，自动回复 S1F2（AreYouThere Ack）
+                try
+                {
+                    // 根据 S/F 分发
+                    if (msg.S == 1 && msg.F == 13)
+                    {
+                        // 解析 S1F13
+                        var data = S1F13_parser.Parse(msg);
+                        // 处理 S1F13 数据并回复 S1F14
+                        await commHandler.HandleS1F13Async(primaryMessage);
+                    }
+                    else if (msg.S == 1 && msg.F == 1)
+                    {
+                        // 解析 S1F1 并回复 S1F2
+                        await commHandler.HandleS1F1Async(primaryMessage);
+                    }
+                    else
+                    {
+                        Console.WriteLine($"错误获取的消息: S{msg.S}F{msg.F}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"处理消息时出错: {ex.Message}");
+                }
             }
         }
         catch (OperationCanceledException)
@@ -227,5 +261,19 @@ public partial class Form1 : Form
             Error(msg, null, ex);
         }
 #endif
+    }
+}
+
+internal class TestDevice : IDevice
+{
+    public bool IsOnline { get; set; }
+
+    public string ModelNumber { get; set; }
+    public string SoftwareRevision { get; set; }
+    public TestDevice()
+    {
+        IsOnline = true;
+        ModelNumber = "GWM-PW-20260407";
+        SoftwareRevision = "V20260407";
     }
 }

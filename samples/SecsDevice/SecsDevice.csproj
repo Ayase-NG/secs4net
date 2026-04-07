@@ -1,13 +1,16 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-	<PropertyGroup>
+    <PropertyGroup>
 		<OutputType>WinExe</OutputType>
-		<TargetFrameworks>net8.0-windows;net472</TargetFrameworks>
+		<TargetFramework>net8.0-windows</TargetFramework>
 		<UseWindowsForms>true</UseWindowsForms>
 		<IsPackable>false</IsPackable>
 	</PropertyGroup>
 
 	<ItemGroup>
+        <ProjectReference Include="..\..\src\Messages\Models\SECSdata\SECSdata.csproj" />
+		<ProjectReference Include="..\..\src\Messages\Parsers\SECSparser\SECSparser.csproj" />
+		<ProjectReference Include="..\..\src\Messages\Handlers\SECShandler\SECShandler.csproj" />
 		<ProjectReference Include="..\..\src\Secs4Net\Secs4Net.csproj" />
 		<ProjectReference Include="..\..\src\Secs4Net.Sml\Secs4Net.Sml.csproj" />
 	</ItemGroup>
