@@ -7,21 +7,21 @@ using System.Threading.Tasks;
 namespace SECSdata
 {
     /// <summary>
-    /// 表示 S2F34 "Define Report Acknowledge" 消息的数据模型。
-    /// 设备使用此消息回复主机的 S2F33 指令。
+    /// S2F38 "Enable Event Report Acknowledge" 消息的数据模型。
+    /// 设备使用此消息回复主机的 S2F37 (Enable Event Report) 指令。
     /// </summary>
-    public class S2F34_data
+    public class S2F38_data
     {
         /// <summary>
-        /// 定义报告确认码 (DRACK)。
-        /// 指示报告定义操作的结果。
+        /// 启用确认码 (EAC)，类型为 Binary (1 byte)。
+        /// 指示启用/禁用操作的结果。
         /// </summary>
-        public byte DRACK { get; set; }
+        public byte EAC { get; set; }
 
         /// <summary>
-        /// 检查操作是否成功。DRACK 为 0 表示成功，其他值为失败。
+        /// 检查操作是否成功。EAC 为 0 表示成功，其他值为失败。
         /// </summary>
-        public bool IsSuccess => DRACK == 0;
+        public bool IsSuccess => EAC == 0;
 
         /// <summary>
         /// 时间戳，用于内部记录发送时间和打印日志，单位为UTC时间

@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace SECShandler
+namespace SECShandler.Interfaces
 {
     /// <summary>
     /// 设备业务接口，用于获取设备状态和信息。

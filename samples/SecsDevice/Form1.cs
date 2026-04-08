@@ -2,12 +2,12 @@
 using Secs4Net;
 using Secs4Net.Sml;
 using SECSparser;
-using SECShandler;
 using System;
 using System.ComponentModel;
 using System.Drawing;
 using System.Threading;
 using System.Windows.Forms;
+using SECShandler.Interfaces;
 
 namespace SecsDevice;
 

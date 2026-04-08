@@ -1,16 +1,18 @@
 ﻿using Secs4Net;
+using SECShandler.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace SECShandler
+namespace SECShandler.Handlers
 {
     /// <summary>
     /// 通信相关的消息处理器。
     /// 负责处理主机（Host）发来的通信建立和心跳检测消息，
     /// 并根据设备状态回复相应的响应消息。
+    /// SxFy中，当y为奇数时需要直接使用原PrimaryMessageWrapper，避免丢失System ID导致回复失败。
     /// </summary>
     public class CommunicationHandler
     {

@@ -8,7 +8,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\Secs4Net\Secs4Net.csproj" />
+    <ProjectReference Include="..\..\Builders\SECSbuilder\SECSbuilder.csproj" />
     <ProjectReference Include="..\..\Models\SECSdata\SECSdata.csproj" />
+    <ProjectReference Include="..\..\Parsers\SECSparser\SECSparser.csproj" />
   </ItemGroup>
 
 </Project>

@@ -6,4 +6,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Secs4Net\Secs4Net.csproj" />
+    <ProjectReference Include="..\..\Models\SECSdata\SECSdata.csproj" />
+  </ItemGroup>
+
 </Project>

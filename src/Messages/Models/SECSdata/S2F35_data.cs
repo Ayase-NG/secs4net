@@ -7,21 +7,22 @@ using System.Threading.Tasks;
 namespace SECSdata
 {
     /// <summary>
-    /// 表示 S2F34 "Define Report Acknowledge" 消息的数据模型。
-    /// 设备使用此消息回复主机的 S2F33 指令。
+    /// S2F35 "Link Event Report" 消息的数据模型。
+    /// 主机通过此消息将报告(RPTID)与事件(CEID)进行绑定。
     /// </summary>
-    public class S2F34_data
+    public class S2F35_data
     {
         /// <summary>
-        /// 定义报告确认码 (DRACK)。
-        /// 指示报告定义操作的结果。
+        /// 数据ID，用于关联请求与响应。
         /// </summary>
-        public byte DRACK { get; set; }
+        public byte DATAID { get; set; }
 
         /// <summary>
-        /// 检查操作是否成功。DRACK 为 0 表示成功，其他值为失败。
+        /// 存储链接配置的核心字典。
+        /// Key: CEID (事件ID)
+        /// Value: 与该CEID绑定的RPTID列表
         /// </summary>
-        public bool IsSuccess => DRACK == 0;
+        public Dictionary<uint, List<uint>> Links { get; set; } = new();
 
         /// <summary>
         /// 时间戳，用于内部记录发送时间和打印日志，单位为UTC时间
