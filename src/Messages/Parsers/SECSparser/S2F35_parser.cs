@@ -36,7 +36,7 @@ namespace SECSparser
             var dataIdItem = root[0];
             if (dataIdItem == null || (dataIdItem.Format != SecsFormat.U1 && dataIdItem.Format  != SecsFormat.Binary))
                 throw new InvalidOperationException("Invalid S2F35 message: DATAID not found or invalid type.");
-            data.DataId = dataIdItem.FirstValueOrDefault<byte>(0);
+            data.DATAID = dataIdItem.FirstValueOrDefault<byte>(0);
 
             // 4. 解析 CEID 列表 (第二个元素)
             var ceidListContainer = root[1];

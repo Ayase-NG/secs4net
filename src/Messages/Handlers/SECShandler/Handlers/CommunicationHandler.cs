@@ -34,7 +34,7 @@ namespace SECShandler.Handlers
         /// 处理 S1F1 "Are You There Request" 消息。
         /// 主机发送此消息询问设备是否在线，设备需要回复 S1F2 携带型号和软件版本。
         /// </summary>
-        public async Task HandleS1F1Async(Secs4Net.PrimaryMessageWrapper primary)
+        public async Task HandleS1F1ReplyAsync(Secs4Net.PrimaryMessageWrapper primary)
         {
             // 构造 S1F2 回复消息
             var reply = new SecsMessage(1, 2, replyExpected: false)
@@ -62,7 +62,7 @@ namespace SECShandler.Handlers
         /// 主机请求与设备建立通信，设备需要根据自身状态回复 S1F14，
         /// 告知是否接受连接，并返回设备型号和软件版本。
         /// </summary>
-        public async Task HandleS1F13Async(Secs4Net.PrimaryMessageWrapper primary)
+        public async Task HandleS1F13ReplyAsync(Secs4Net.PrimaryMessageWrapper primary)
         {
             // 根据设备是否在线决定是否接受通信请求
             bool accept = _device.IsOnline;

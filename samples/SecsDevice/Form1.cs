@@ -6,8 +6,13 @@ using System;
 using System.ComponentModel;
 using System.Drawing;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Collections.Generic;
+using System.Linq;
+// using System.Collections.ObjectModel;
 using SECShandler.Interfaces;
+using SECShandler.Handlers;
 
 namespace SecsDevice;
 
@@ -34,6 +39,83 @@ public partial class Form1 : Form
         AppDomain.CurrentDomain.UnhandledException += (sender, e) => MessageBox.Show(e.ExceptionObject.ToString());
         _logger = new SecsLogger(this);
     }
+
+    private static async Task ReplyNotSupported(PrimaryMessageWrapper primary)
+    {
+        try
+        {
+            var reply = new SecsMessage(9, 7, replyExpected: false)
+            {
+                Name = "NotSupported",
+                SecsItem = Item.L()
+            };
+
+            await primary.TryReplyAsync(reply);
+        }
+        catch
+        {
+            // ignore
+        }
+    }
+
+// 简单的内存实现：IReportStorage
+internal class InMemoryReportStorage : SECShandler.Interfaces.IReportStorage
+{
+    private readonly Dictionary<uint, List<uint>> _reports = new();
+
+    public void AddOrUpdateReport(uint rptId, List<uint> vidList)
+    {
+        _reports[rptId] = new List<uint>(vidList);
+    }
+
+    public bool ContainsReport(uint rptId) => _reports.ContainsKey(rptId);
+
+    public void ClearAllReports() => _reports.Clear();
+
+    public void RemoveReport(uint rptId) => _reports.Remove(rptId);
+}
+
+// 简单的内存实现：IEventLinkStorage
+internal class InMemoryEventLinkStorage : SECShandler.Interfaces.IEventLinkStorage
+{
+    private readonly Dictionary<uint, List<uint>> _links = new();
+
+    public bool IsCeidValid(uint ceid) => true; // 测试环境默认全部合法
+
+    public IReadOnlyList<uint> GetRptIdsForCeid(uint ceid)
+        => _links.TryGetValue(ceid, out var list) ? list.AsReadOnly() : Array.Empty<uint>();
+
+    public void UnlinkEvent(uint ceid) => _links[ceid] = new List<uint>();
+
+    public void UpdateEventLinks(Dictionary<uint, List<uint>> links)
+    {
+        _links.Clear();
+        foreach (var kv in links)
+        {
+            _links[kv.Key] = new List<uint>(kv.Value);
+        }
+    }
+}
+
+// 简单的内存实现：IEventEnableStorage
+internal class InMemoryEventEnableStorage : SECShandler.Interfaces.IEventEnableStorage
+{
+    private readonly HashSet<uint> _enabled = new();
+
+    public void DisableEvent(uint ceid) => _enabled.Remove(ceid);
+
+    public void EnableAllEvents()
+    {
+        // 在测试实现中，我们不预先知道设备支持的 CEID，保留为空实现
+        // 如果需要，可以将一组预定义 CEID 添加到 _enabled
+    }
+
+    public void EnableEvent(uint ceid) => _enabled.Add(ceid);
+
+    public IReadOnlyList<uint> GetAllEnabledEvents() => _enabled.ToList().AsReadOnly();
+
+    public bool IsEventEnabled(uint ceid) => _enabled.Contains(ceid);
+}
 
     private async void btnEnable_Click(object sender, EventArgs e)
     {
@@ -72,38 +154,55 @@ public partial class Form1 : Form
         var testDevice = new TestDevice();
         var commHandler = new CommunicationHandler(_secsGem!, testDevice);
 
+        // 为 DefineEventReportHandler 提供简单的内存实现，便于本地测试
+        var reportStorage = new InMemoryReportStorage();
+        var eventLinkStorage = new InMemoryEventLinkStorage();
+        var eventEnableStorage = new InMemoryEventEnableStorage();
+        var derHandler = new DefineEventReportHandler(_secsGem!, reportStorage, eventLinkStorage, eventEnableStorage);
+
         try
         {
             await foreach (var primaryMessage in _secsGem.GetPrimaryMessageAsync(_cancellationTokenSource.Token))
             {
                 recvBuffer.Add(primaryMessage);
                 var msg = primaryMessage.PrimaryMessage;
-                // 自动响应部分特殊主消息，便于在本地进行握手流程测试：
-                // - 当接收到 S1F13（Establish Communications Request）时，自动回复 S1F14（Establish Communications Acknowledge），内容为硬编码值
-                // - 当接收到 S1F1（AreYouThere）时，自动回复 S1F2（AreYouThere Ack）
+                Console.WriteLine($"收到消息: S{msg.S}F{msg.F}");
+
                 try
                 {
-                    // 根据 S/F 分发
-                    if (msg.S == 1 && msg.F == 13)
+                    // 使用 C# 8.0 的 switch 表达式，根据 (S, F) 元组进行匹配
+                    switch ((msg.S, msg.F))
                     {
-                        // 解析 S1F13
-                        var data = S1F13_parser.Parse(msg);
-                        // 处理 S1F13 数据并回复 S1F14
-                        await commHandler.HandleS1F13Async(primaryMessage);
-                    }
-                    else if (msg.S == 1 && msg.F == 1)
-                    {
-                        // 解析 S1F1 并回复 S1F2
-                        await commHandler.HandleS1F1Async(primaryMessage);
-                    }
-                    else
-                    {
-                        Console.WriteLine($"错误获取的消息: S{msg.S}F{msg.F}");
+                        case (1, 13): // S1F13 建立通信请求
+                            await commHandler.HandleS1F13ReplyAsync(primaryMessage);
+                            break;
+
+                        case (1, 1):  // S1F1 在线查询
+                            await commHandler.HandleS1F1ReplyAsync(primaryMessage);
+                            break;
+
+                        case (2, 33): // S2F33 定义报告
+                            await derHandler.HandleS2F33ReplyAsync(primaryMessage);
+                            break;
+                        case (2, 35): // S2F35 删除报告
+                            await derHandler.HandleS2F35ReplyAsync(primaryMessage);
+                            break;
+                        case (2, 37): // S2F37 启用报告
+                            await derHandler.HandleS2F37ReplyAsync(primaryMessage);
+                            break;
+                        // 可以继续添加其他需要测试的消息，例如 S2F35, S2F37
+                        // case (2, 35): ...
+
+                        default:
+                            // 不支持的 SF，回复 S9F7
+                            await ReplyNotSupported(primaryMessage);
+                            break;
                     }
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"处理消息时出错: {ex.Message}");
+                    // 可以选择回复 S9F1 或其他错误消息
                 }
             }
         }
