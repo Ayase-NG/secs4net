@@ -1,0 +1,361 @@
+{
+  "ceids": [
+    {
+      "id": 1,
+      "name": "EQUIPMENT_OFFLINE",
+      "description": "设备离线",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 2,
+      "name": "CONTROL_STATE_LOCAL",
+      "description": "设备在线本地",
+      "defaultEnabled": false,
+      "category": "Control"
+    },
+    {
+      "id": 3,
+      "name": "CONTROL_STATE_REMOTE",
+      "description": "设备在线远程",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 4,
+      "name": "ProcessingStarted",
+      "description": "运行开始",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 5,
+      "name": "ProcessingCompleted",
+      "description": "运行完成",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 6,
+      "name": "ProcessingStopped",
+      "description": "运行停止",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 7,
+      "name": "ProcessingStateChanged",
+      "description": "运行状态改变",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 8,
+      "name": "EquipmentConstantChanged",
+      "description": "设备参数变更",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 9,
+      "name": "ProcessProgramChanged",
+      "description": "运行配方变更",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 10,
+      "name": "ProcessProgramSelected",
+      "description": "运行配方选择",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 160,
+      "name": "SPLACTIVATED",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 161,
+      "name": "SPLDEACTIVATED",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 162,
+      "name": "SPLTRSFAIL",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 170,
+      "name": "MSG_RECOGNITION",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 180,
+      "name": "RCP_CREATED",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 181,
+      "name": "RCP_CHANGED",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 1000,
+      "name": "LitghtTowerStatusChanged",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 1001,
+      "name": "BuzzerStatusChanged",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 1002,
+      "name": "PresenceSensorChanged",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 1003,
+      "name": "PlacementSensorChanged",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 1020,
+      "name": "EQP_MODE_AUTO",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 1021,
+      "name": "EQP_MODE_MANUAL",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 2200,
+      "name": "CARRIER_ARRIVED",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 2210,
+      "name": "CARRIER_ID_READ",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 2220,
+      "name": "CARRIER_ID_READ_FAILED",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 2230,
+      "name": "SLOT_MAP_AVAILABLE",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 2240,
+      "name": "CARRIER_DOCK_COMPLETE",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 2290,
+      "name": "BATCH_ID_READ",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 2300,
+      "name": "CARRIER_PROCESS_START",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 2310,
+      "name": "CARRIER_ID_WRITE",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 2320,
+      "name": "CARRIER_ID_WRITE_FAIL",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 2410,
+      "name": "WAFER_LEFT_POSITION",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 2420,
+      "name": "WAFER_ARRIVE_POSITION",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 2450,
+      "name": "WAFER_LM_READ",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 2451,
+      "name": "WAFER_LM_READ_FAILED",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 2452,
+      "name": "PM1_WAFER_METROLOGY_COMPLETE",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 2453,
+      "name": "PM1_WAFER_METROLOGY_FAILED",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 2454,
+      "name": "PM1_WAFER_METROLOGY_DATA_AVAILABLE",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 2455,
+      "name": "PM1_WAFER_METROLOGY_START",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 2500,
+      "name": "LOT_PROCESS_START",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 2600,
+      "name": "CARRIER_JOB_ASSIGNED",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 4000,
+      "name": "SORTERJOB_COMPLETE",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 4010,
+      "name": "UNLOAD_CARRIER_FULL",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 4020,
+      "name": "LOAD_CARRIER_EMPTY",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 4030,
+      "name": "SORTERJOB_CANCELLED",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 4050,
+      "name": "CARRIER_UNLOADED",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 4100,
+      "name": "CARRIER_REMOVED",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 5000,
+      "name": "LOT_PROCESS_END",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 5010,
+      "name": "CARRIER_PROCESS_COMPLETE",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 10001,
+      "name": "__SYSTEM__100001__ALARMSET",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    },
+    {
+      "id": 200001,
+      "name": "__SYSTEM__200001__ALARMCLEAR",
+      "description": "",
+      "defaultEnabled": true,
+      "category": "Control"
+    }
+  ]
+}

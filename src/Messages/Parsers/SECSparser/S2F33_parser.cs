@@ -29,12 +29,16 @@ namespace SECSparser
 
             var data = new S2F33_data();
 
-            // 3. 解析 DATAID (第一个元素)
+            // 3. 解析 DATAID (第一个元素)，使用通用工具进行类型匹配（仅接受 U1/U2/U4），不匹配时抛出异常
             var dataIdItem = root[0];
-            if (dataIdItem != null && (dataIdItem.Format == SecsFormat.U1 || dataIdItem.Format == SecsFormat.Binary))
-                data.DATAID = dataIdItem.FirstValueOrDefault<byte>(0);
-            else
+            if (dataIdItem == null)
                 throw new InvalidOperationException("Invalid S2F33 message format: DATAID not found.");
+
+            // 使用 SecsItemHelper 提供的通用方法，类型错误会以 InvalidOperationException 抛出并传到上层
+            uint dataIdUint = dataIdItem.GetUIntId("DATA");
+            if (dataIdUint > byte.MaxValue)
+                throw new InvalidOperationException("Invalid S2F33 message format: DATAID out of byte range.");
+            data.DATAID = (byte)dataIdUint;
 
             // 4. 解析报告列表 (第二个元素)
             var reportsList = root[1];
@@ -48,35 +52,73 @@ namespace SECSparser
             // 5. 遍历每个报告
             foreach (var reportItem in reportsList.Items)
             {
-                if (reportItem.Format != SecsFormat.List || reportItem.Count < 2)
+                // 每个 reportItem 应为 List, 且至少包含 RPTID（第二个元素可选）
+                if (reportItem == null || reportItem.Format != SecsFormat.List || reportItem.Count < 1)
                     continue;
 
-                // 解析 RPTID
+                // 解析 RPTID，使用通用工具方法，若无法解析则跳过该项
                 var rptIdItem = reportItem[0];
-                uint rptId = rptIdItem?.FirstValueOrDefault<uint>(0) ?? 0;
+                uint rptId;
+                try
+                {
+                    // 支持被单元素 List 包装的情况
+                    if (rptIdItem.Format == SecsFormat.List && rptIdItem.Count > 0)
+                        rptId = rptIdItem[0].GetUIntId("RPT");
+                    else
+                        rptId = rptIdItem.GetUIntId("RPT");
+                }
+                catch (InvalidOperationException)
+                {
+                    continue;
+                }
+
                 if (rptId == 0) continue;
 
-                // 解析 VID 列表
+                // 解析 VID 列表（如果存在）
                 var vidList = new List<uint>();
-                var vidsItem = reportItem[1];
-                if (vidsItem.Format == SecsFormat.List)
+                if (reportItem.Count > 1)
                 {
-                    foreach (var vidItem in vidsItem.Items)
+                    var vidsItem = reportItem[1];
+                    if (vidsItem != null && vidsItem.Format == SecsFormat.List)
                     {
-                        uint vid = vidItem?.FirstValueOrDefault<uint>(0) ?? 0;
-                        if (vid != 0)
-                            vidList.Add(vid);
+                        foreach (var vidItem in vidsItem.Items)
+                        {
+                            try
+                            {
+                                uint vid;
+                                if (vidItem.Format == SecsFormat.List && vidItem.Count > 0)
+                                    vid = vidItem[0].GetUIntId("VID");
+                                else
+                                    vid = vidItem.GetUIntId("VID");
+
+                                if (vid != 0)
+                                    vidList.Add(vid);
+                            }
+                            catch (InvalidOperationException)
+                            {
+                                // 忽略单个 VID 类型错误
+                                continue;
+                            }
+                        }
                     }
                 }
 
-                // 如果 VID 列表为空，表示删除此 RPTID
                 if (vidList.Count == 0)
-                    data.Reports[rptId] = new List<uint>(); // 空列表表示删除
+                {
+                    // 表示删除该 RPTID
+                    data.Reports[rptId] = new List<uint>();
+                    data.DeletedRptIds.Add(rptId);
+                }
                 else
+                {
                     data.Reports[rptId] = vidList;
+                    data.DefinedReports[rptId] = vidList;
+                }
             }
 
             return data;
         }
+
+        // 使用通用 SecsItemHelper 中的方法来读取数值，避免重复实现
     }
 }

@@ -66,6 +66,12 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Builders", "Builders", "{8E
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SECSbuilder", "src\Messages\Builders\SECSbuilder\SECSbuilder.csproj", "{F4005C90-79E6-497B-B287-6AF3E51A7209}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Config", "Config", "{E1D4DF20-48BF-4AA8-99F2-B7BC7E3876DE}"
+	ProjectSection(SolutionItems) = preProject
+		CEIDS.json = CEIDS.json
+		SVIDS.csv = SVIDS.csv
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -307,6 +313,7 @@ Global
 		{FCD6EC6D-BB56-4BFF-B93D-A5C41699711D} = {DA1E1CB5-19B1-4477-B851-66BF22575426}
 		{8E336F69-F7A6-4467-A14D-75FB390D966A} = {A6F58FC4-737D-4B78-BF1A-41ABBE6408B4}
 		{F4005C90-79E6-497B-B287-6AF3E51A7209} = {8E336F69-F7A6-4467-A14D-75FB390D966A}
+		{E1D4DF20-48BF-4AA8-99F2-B7BC7E3876DE} = {A6F58FC4-737D-4B78-BF1A-41ABBE6408B4}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {6D65953E-CAC2-4CC3-AD7F-1385F33D7C21}

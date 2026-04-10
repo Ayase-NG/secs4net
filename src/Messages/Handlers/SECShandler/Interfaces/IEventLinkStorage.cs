@@ -6,6 +6,9 @@ using System.Threading.Tasks;
 
 namespace SECShandler.Interfaces
 {
+    /// <summary>
+    /// RPTID 与 CEID 列表的链接关系存储接口。将Fab厂所需的报告与事件相连
+    /// </summary>
     public interface IEventLinkStorage
     {
         /// <summary>检查指定的 CEID 是否为设备支持的有效事件 ID。</summary>

@@ -190,9 +190,6 @@ internal class InMemoryEventEnableStorage : SECShandler.Interfaces.IEventEnableS
                         case (2, 37): // S2F37 启用报告
                             await derHandler.HandleS2F37ReplyAsync(primaryMessage);
                             break;
-                        // 可以继续添加其他需要测试的消息，例如 S2F35, S2F37
-                        // case (2, 35): ...
-
                         default:
                             // 不支持的 SF，回复 S9F7
                             await ReplyNotSupported(primaryMessage);

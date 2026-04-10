@@ -31,12 +31,17 @@ namespace SECSparser
             if (root == null || root.Format != SecsFormat.List || root.Count < 2)
                 throw new InvalidOperationException("Invalid S2F35 message: root list missing or invalid.");
 
-            // 3. 解析 DATAID (第一个元素，类型 U1 或 Binary)
+            // 3. 解析 DATAID (第一个元素)，通过外部通用工具类进行类型匹配（仅接受 U1/U2/U4）
             var data = new S2F35_data();
             var dataIdItem = root[0];
-            if (dataIdItem == null || (dataIdItem.Format != SecsFormat.U1 && dataIdItem.Format  != SecsFormat.Binary))
-                throw new InvalidOperationException("Invalid S2F35 message: DATAID not found or invalid type.");
-            data.DATAID = dataIdItem.FirstValueOrDefault<byte>(0);
+            if (dataIdItem == null)
+                throw new InvalidOperationException("Invalid S2F35 message: DATAID not found.");
+
+            // 使用通用方法尝试读取 DATAID，会在类型不匹配时抛出异常并向上传播
+            uint dataIdValue = dataIdItem.GetUIntId("DATA");
+            if (dataIdValue > byte.MaxValue)
+                throw new InvalidOperationException("Invalid S2F35 message: DATAID out of byte range.");
+            data.DATAID = (byte)dataIdValue;
 
             // 4. 解析 CEID 列表 (第二个元素)
             var ceidListContainer = root[1];
