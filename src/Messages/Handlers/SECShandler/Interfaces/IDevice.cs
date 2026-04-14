@@ -20,5 +20,13 @@ namespace SECShandler.Interfaces
 
         /// <summary>软件版本（SOFTREV），例如 "1.0.0"</summary>
         string SoftwareRevision { get; }
+
+        Task StartProcessAsync(string? lotId);
+
+        Task StopProcessAsync();
+
+        Task PauseProcessAsync();
+
+        Task ResumeProcessAsync();
     }
 }

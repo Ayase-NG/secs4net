@@ -9,12 +9,14 @@ using System.Threading.Tasks;
 namespace SECSparser
 {
     /// <summary>
-    /// S2F35 消息解析器。
+    /// S2F35 "Link Event Report" 消息解析器。
+    /// 主机通过此消息将报告(RPTID)与事件(CEID)进行绑定。
     /// </summary>
     public static class S2F35_parser
     {
         /// <summary>
-        /// 将原始的 SecsMessage 解析为 S2F35_Data 对象。
+        /// 将原始的 SecsMessage 解析为 S2F35_data 对象（Link Event Report）。
+        /// 解析 CEID 与对应的 RPTID 列表并填充到返回对象的 Links 字典中。
         /// </summary>
         /// <param name="msg">从 Secs4Net 接收到的 S2F35 消息。</param>
         /// <returns>解析后的强类型数据对象。</returns>
@@ -55,11 +57,9 @@ namespace SECSparser
                 if (ceidItem.Format != SecsFormat.List || ceidItem.Count < 2)
                     continue; // 忽略格式错误的项
 
-                // 解析 CEID (第一个元素，类型 U4)
+                // 解析 CEID 列表 (第一个元素)
                 var ceidValueItem = ceidItem[0];
-                if (ceidValueItem == null || ceidValueItem.Format != SecsFormat.U4)
-                    continue;
-                uint ceid = ceidValueItem.FirstValueOrDefault<uint>(0);
+                uint ceid = ceidValueItem.GetUIntId("CE");
                 if (ceid == 0) continue;
 
                 // 解析 RPTID 列表 (第二个元素)
@@ -70,12 +70,11 @@ namespace SECSparser
                 var rptIds = new List<uint>();
                 foreach (var rptIdItem in rptIdListContainer.Items)
                 {
-                    if (rptIdItem.Format == SecsFormat.U4)
-                    {
-                        uint rptId = rptIdItem.FirstValueOrDefault<uint>(0);
-                        if (rptId != 0)
+
+                        uint rptId = rptIdItem.GetUIntId("RPT");
+                    if (rptId != 0)
                             rptIds.Add(rptId);
-                    }
+                    
                 }
 
                 // 存储链接关系，注意：如果 rptIds 为空，表示解除该 CEID 的所有链接

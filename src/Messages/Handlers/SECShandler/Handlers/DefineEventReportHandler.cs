@@ -43,7 +43,7 @@ namespace SECShandler.Handlers
         /// <summary>
         /// 处理 S2F33 消息。并回复 S2F34 消息确认报告定义的结果。
         /// </summary>
-        /// <param name="primaryMsg">收到的原始 S2F33 消息。</param>
+        /// <param name="primary">收到的原始 S2F33 消息。</param>
         public async Task HandleS2F33ReplyAsync(PrimaryMessageWrapper primary)
         {
             S2F33_data data;

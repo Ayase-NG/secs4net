@@ -6,17 +6,21 @@ namespace Secs4Net;
 
 partial class Item
 {
+    /// <summary>创建List类型Item（L）</summary>
     public static Item L(IEnumerable<Item> items) => L(items.ToArray());
     public static Item L(params Item[] items) => items.Length > 0 ? new ListItem(items) : EmptyL;
 
+    /// <summary>创建字符串类型Item：A=ASCII编码，J=JIS8编码</summary>
     public static Item A(string? value) => string.IsNullOrEmpty(value) ? EmptyA : new StringItem(SecsFormat.ASCII, value);
     public static Item J(string? value) => string.IsNullOrEmpty(value) ? EmptyJ : new StringItem(SecsFormat.JIS8, value);
 
+    /// <summary>创建二进制类型Item（B），支持byte数组/Memory/IMemoryOwner</summary>
     [MethodImpl(AggressiveInlining)] public static Item B(params byte[] value) => B(value.AsMemory());
     [MethodImpl(AggressiveInlining)] public static Item B(IEnumerable<byte> value) => B(value.ToArray());
     [MethodImpl(AggressiveInlining)] public static Item B(Memory<byte> value) => new MemoryItem<byte>(SecsFormat.Binary, value);
     [MethodImpl(AggressiveInlining)] public static Item B(IMemoryOwner<byte> valueOwner) => new MemoryOwnerItem<byte>(SecsFormat.Binary, valueOwner);
 
+    /// <summary>创建无符号整数类型Item：U1=1字节, U2=2字节, U4=4字节, U8=8字节</summary>
     [MethodImpl(AggressiveInlining)] public static Item U1(params byte[] value) => U1(value.AsMemory());
     [MethodImpl(AggressiveInlining)] public static Item U1(IEnumerable<byte> value) => U1(value.ToArray());
     [MethodImpl(AggressiveInlining)] public static Item U1(Memory<byte> value) => new MemoryItem<byte>(SecsFormat.U1, value);
@@ -37,6 +41,7 @@ partial class Item
     [MethodImpl(AggressiveInlining)] public static Item U8(Memory<ulong> value) => new MemoryItem<ulong>(SecsFormat.U8, value);
     [MethodImpl(AggressiveInlining)] public static Item U8(IMemoryOwner<ulong> valueOwner) => new MemoryOwnerItem<ulong>(SecsFormat.U8, valueOwner);
 
+    /// <summary>创建有符号整数类型Item：I1=1字节, I2=2字节, I4=4字节, I8=8字节</summary>
     [MethodImpl(AggressiveInlining)] public static Item I1(params sbyte[] value) => I1(value.AsMemory());
     [MethodImpl(AggressiveInlining)] public static Item I1(IEnumerable<sbyte> value) => I1(value.ToArray());
     [MethodImpl(AggressiveInlining)] public static Item I1(Memory<sbyte> value) => new MemoryItem<sbyte>(SecsFormat.I1, value);
@@ -57,6 +62,7 @@ partial class Item
     [MethodImpl(AggressiveInlining)] public static Item I8(Memory<long> value) => new MemoryItem<long>(SecsFormat.I8, value);
     [MethodImpl(AggressiveInlining)] public static Item I8(IMemoryOwner<long> valueOwner) => new MemoryOwnerItem<long>(SecsFormat.I8, valueOwner);
 
+    /// <summary>创建浮点数类型Item：F4=单精度(4字节), F8=双精度(8字节)</summary>
     [MethodImpl(AggressiveInlining)] public static Item F4(params float[] value) => F4(value.AsMemory());
     [MethodImpl(AggressiveInlining)] public static Item F4(IEnumerable<float> value) => F4(value.ToArray());
     [MethodImpl(AggressiveInlining)] public static Item F4(Memory<float> value) => new MemoryItem<float>(SecsFormat.F4, value);
@@ -67,11 +73,13 @@ partial class Item
     [MethodImpl(AggressiveInlining)] public static Item F8(Memory<double> value) => new MemoryItem<double>(SecsFormat.F8, value);
     [MethodImpl(AggressiveInlining)] public static Item F8(IMemoryOwner<double> valueOwner) => new MemoryOwnerItem<double>(SecsFormat.F8, valueOwner);
 
+    /// <summary>创建布尔类型Item（Boolean）</summary>
     [MethodImpl(AggressiveInlining)] public static Item Boolean(params bool[] value) => Boolean(value.AsMemory());
     [MethodImpl(AggressiveInlining)] public static Item Boolean(IEnumerable<bool> value) => Boolean(value.ToArray());
     [MethodImpl(AggressiveInlining)] public static Item Boolean(Memory<bool> value) => new MemoryItem<bool>(SecsFormat.Boolean, value);
     [MethodImpl(AggressiveInlining)] public static Item Boolean(IMemoryOwner<bool> valueOwner) => new MemoryOwnerItem<bool>(SecsFormat.Boolean, valueOwner);
 
+    /// <summary>创建空Item的无参重载版本，用于初始化空列表或占位</summary>
     [MethodImpl(AggressiveInlining)] public static Item L() => EmptyL;
     [MethodImpl(AggressiveInlining)] public static Item A() => EmptyA;
     [MethodImpl(AggressiveInlining)] public static Item J() => EmptyJ;
@@ -88,6 +96,7 @@ partial class Item
     [MethodImpl(AggressiveInlining)] public static Item F8() => EmptyF8;
     [MethodImpl(AggressiveInlining)] public static Item Boolean() => EmptyBoolean;
 
+    /// <summary>预分配的静态空Item实例，避免重复创建相同类型的空Item</summary>
     private static readonly Item EmptyL = new ListItem([]);
     private static readonly Item EmptyA = new StringItem(SecsFormat.ASCII, string.Empty);
     private static readonly Item EmptyJ = new StringItem(SecsFormat.JIS8, string.Empty);

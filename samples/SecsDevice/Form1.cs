@@ -95,6 +95,17 @@ internal class InMemoryEventLinkStorage : SECShandler.Interfaces.IEventLinkStora
             _links[kv.Key] = new List<uint>(kv.Value);
         }
     }
+
+        // 供测试界面使用：返回当前所有链接的浅拷贝
+        public Dictionary<uint, List<uint>> GetAllLinks()
+        {
+            var copy = new Dictionary<uint, List<uint>>();
+            foreach (var kv in _links)
+            {
+                copy[kv.Key] = new List<uint>(kv.Value);
+            }
+            return copy;
+        }
 }
 
 // 简单的内存实现：IEventEnableStorage
@@ -159,6 +170,7 @@ internal class InMemoryEventEnableStorage : SECShandler.Interfaces.IEventEnableS
         var eventLinkStorage = new InMemoryEventLinkStorage();
         var eventEnableStorage = new InMemoryEventEnableStorage();
         var derHandler = new DefineEventReportHandler(_secsGem!, reportStorage, eventLinkStorage, eventEnableStorage);
+        var controlHandler = new ControlDeviceHandler(_secsGem!, testDevice);
 
         try
         {
@@ -184,11 +196,38 @@ internal class InMemoryEventEnableStorage : SECShandler.Interfaces.IEventEnableS
                         case (2, 33): // S2F33 定义报告
                             await derHandler.HandleS2F33ReplyAsync(primaryMessage);
                             break;
-                        case (2, 35): // S2F35 删除报告
+                        case (2, 35): // S2F35 处理报告链接
                             await derHandler.HandleS2F35ReplyAsync(primaryMessage);
+
+                            // 在测试界面输出当前链接的 CEID -> RPTID 列表
+                            try
+                            {
+                                var links = eventLinkStorage.GetAllLinks();
+                                _logger.Info("Current CEID -> RPTID links:");
+                                if (links.Count == 0)
+                                {
+                                    _logger.Info("  (no links)");
+                                }
+                                else
+                                {
+                                    foreach (var kv in links)
+                                    {
+                                        var rptList = kv.Value != null && kv.Value.Count > 0 ? string.Join(",", kv.Value) : "(none)";
+                                        _logger.Info($"  CEID {kv.Key} -> RPTIDs: {rptList}");
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.Error($"Failed to get links: {ex.Message}", null, ex);
+                            }
+
                             break;
                         case (2, 37): // S2F37 启用报告
                             await derHandler.HandleS2F37ReplyAsync(primaryMessage);
+                            break;
+                        case (2, 41): // S2F37 启用报告
+                            await controlHandler.HandleS2F41ReplyAsync(primaryMessage);
                             break;
                         default:
                             // 不支持的 SF，回复 S9F7
@@ -360,6 +399,9 @@ internal class InMemoryEventEnableStorage : SECShandler.Interfaces.IEventEnableS
     }
 }
 
+/// <summary>
+/// 此处为设备的测试实现，实际使用时应替换为与具体设备通信的实现类。
+/// </summary>
 internal class TestDevice : IDevice
 {
     public bool IsOnline { get; set; }
@@ -371,5 +413,29 @@ internal class TestDevice : IDevice
         IsOnline = true;
         ModelNumber = "GWM-PW-20260407";
         SoftwareRevision = "V20260407";
+    }
+
+    public Task StartProcessAsync(string? lotId)
+    {
+        Console.WriteLine($"Starting process with LOTID: {lotId}");
+        throw new NotImplementedException();
+    }
+
+    public Task StopProcessAsync()
+    {
+        Console.WriteLine("Stopping process");
+        throw new NotImplementedException();
+    }
+
+    public Task PauseProcessAsync()
+    {
+        Console.WriteLine("Pausing process");
+        throw new NotImplementedException();
+    }
+
+    public Task ResumeProcessAsync()
+    {
+        Console.WriteLine("Resuming process");
+        throw new NotImplementedException();
     }
 }
