@@ -56,7 +56,7 @@ namespace SECShandler.Handlers
 
             try
             {
-                // 2. 根据命令名执行不同的业务逻辑
+                // 2. 根据命令名执行不同的业务逻辑,需注意！！！Host端发送的RCMD的长度需匹配，例如START是：A 5 RCMD 'START';STOP是：A 4 RCMD 'STOP'，否则会因多空格解析失败
                 switch (data.RCMD)
                 {
                     case "START":

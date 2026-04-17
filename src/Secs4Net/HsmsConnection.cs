@@ -171,6 +171,9 @@ public sealed class HsmsConnection : ISecsConnection, IAsyncDisposable
 
     private CancellationToken _stoppingToken;
     private CancellationTokenSource? _cancellationTokenSourceForPipeDecoder;
+    // 控制启动/连接循环任务生命周期的取消令牌源。
+    // 当请求重连时，会先取消之前的循环再启动新的循环，避免因多个重试任务同时存在而导致资源累积和泄漏。
+    private CancellationTokenSource? _startLoopCts;
     private readonly CancellationTokenSource _cancellationSourceForControlMessageProcessing = new();
 
     /// <summary>
@@ -381,7 +384,26 @@ public sealed class HsmsConnection : ISecsConnection, IAsyncDisposable
     public void Start(CancellationToken cancellation)
     {
         _stoppingToken = cancellation;
-        Task.Run(() => _startImpl(cancellation), cancellation);
+
+        // 取消之前的启动循环，确保只有一个连接循环在运行。
+        try
+        {
+            if (_startLoopCts != null)
+            {
+                try { _startLoopCts.Cancel(); } catch { }
+                try { _startLoopCts.Dispose(); } catch { }
+                _startLoopCts = null;
+            }
+
+            // 创建一个链接的取消令牌源，这样调用方的取消也会取消内部循环。
+            _startLoopCts = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+            var token = _startLoopCts.Token;
+            Task.Run(() => _startImpl(token), token);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error("Failed to start connection loop: " + ex.Message);
+        }
     }
 
     /// <summary>
@@ -761,6 +783,17 @@ public sealed class HsmsConnection : ISecsConnection, IAsyncDisposable
         }
 
         Disconnect();
+        // 取消正在运行的启动/连接循环
+        try
+        {
+            if (_startLoopCts is { IsCancellationRequested: false })
+            {
+                _startLoopCts.Cancel();
+            }
+            _startLoopCts?.Dispose();
+            _startLoopCts = null;
+        }
+        catch { }
         _cancellationSourceForControlMessageProcessing.Cancel();
         _cancellationSourceForControlMessageProcessing.Dispose();
         _timer7.Dispose();

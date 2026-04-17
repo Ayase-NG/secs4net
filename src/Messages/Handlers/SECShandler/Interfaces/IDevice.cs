@@ -28,5 +28,15 @@ namespace SECShandler.Interfaces
         Task PauseProcessAsync();
 
         Task ResumeProcessAsync();
+
+        Task AbortProcessAsync();
+
+        Task PPSelectAsync();
+
+        Task ChangeToLocalAsync();
+
+        Task LoadCarrierAsync();
+
+        Task UnLoadCarrierAsync();
     }
 }
