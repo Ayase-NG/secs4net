@@ -1,14 +1,98 @@
 using CommunityToolkit.HighPerformance.Buffers;
 using FluentAssertions;
+using GY.PLC.Comm;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Nacos.AspNetCore.V2;
 using System;
 using System.Buffers;
 using System.Linq;
+using System.Net;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace Secs4Net.UnitTests;
 
+
 public class ItemUnitTest
 {
+    private readonly IServiceProvider _services;
+
+    /// <summary>
+    /// 初始化测试类，设置依赖注入容器并配置必要的服务，如 PlcClient 和 gRPC，以便在测试中使用。
+    /// </summary>
+    public ItemUnitTest()
+    {
+        _services = Init();
+    }
+
+    public static IServiceProvider Init()
+    {
+        Console.WriteLine("Initializing DI container for tests...");
+        WebApplicationBuilder builder = WebApplication.CreateBuilder();
+        builder.WebHost.ConfigureKestrel(options =>
+        {
+            options.Listen(
+                    IPAddress.Any,
+                    8502,
+                    ListenOptions =>
+                    {
+                        ListenOptions.Protocols = HttpProtocols.Http2;
+                    }
+                );
+        });
+
+        builder.Services.AddNacosAspNet(option =>
+        {
+            option.ServerAddresses = ["http://localhost:8848"];
+            option.DefaultTimeOut = 15000;
+            option.Namespace = "GWE";
+            option.ServiceName = "Edge_Ui";
+            option.GroupName = "GY";
+            option.ClusterName = "DEFAULT";
+            option.Weight = 100;
+            option.ConfigUseRpc = true;
+            option.NamingUseRpc = true;
+            option.Ip = "127.0.0.1";
+            option.Port = 8502;
+        }).AddSingleton<PlcClient>();
+
+        builder.Services.AddGrpc();
+
+        builder.Services.AddLogging(loggingBuilder =>
+        {
+            loggingBuilder.ClearProviders();
+            loggingBuilder.SetMinimumLevel(LogLevel.Debug);
+            loggingBuilder.AddConsole();
+        });
+
+        WebApplication app = builder.Build();
+        return app.Services;
+
+    }
+
+    [Fact]
+    public async Task GY_PLC_COM_TEST()
+    {
+        // 从 DI 容器解析 PlcClient（不要直接 new）
+        using var scope = _services.CreateScope();
+        var plcClient = scope.ServiceProvider.GetRequiredService<PlcClient>();
+        plcClient.StartSubZeromqChanged();
+        //plcClient.CoilOnChanged = this.CoilOnChanged;
+        //plcClient.HoldingChanged = this.HoldingChanged;
+        // Attempt to read a holding register from PLC. This will block until the read completes or fails.
+        var holdingResult = await plcClient.ReadHolding(Plc.Holdings.RobotStatus);
+        (bool holdingSuccess, string? holdingMessage, ushort? holdingValue) = holdingResult;
+
+        // result expected shape: (bool success, string message, ushort value)
+        holdingSuccess.Should().BeTrue("PLC must be reachable and return a successful read for integration test");
+        Console.WriteLine($"ReadHolding RobotStatus => success={holdingSuccess}, message={holdingMessage}, value={holdingValue}");
+    }
+
     [Fact]
     public void Item_Self_Equals_Should_Be_True()
     {
