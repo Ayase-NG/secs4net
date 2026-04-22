@@ -63,7 +63,14 @@ public sealed class RemoteCommandPrimaryMessageHandler : IPrimaryMessageHandler
 
         try
         {
-            Console.WriteLine($"S2F41 START 触发 gRPC StartMeasurement，LotId:{startMessage.LotId}, PPID:{startMessage.PPID}");
+            var slots = startMessage.SlotsList.Count > 0 ? string.Join(",", startMessage.SlotsList) : "<empty>";
+            _logger.LogInformation(
+                "S2F41 START -> StartMeasurement payload. Name={Name}, LotId={LotId}, PPID={PPID}, Slots=[{Slots}]",
+                startMessage.Name,
+                startMessage.LotId,
+                startMessage.PPID,
+                slots);
+            Console.WriteLine($"S2F41 START 触发 gRPC StartMeasurement，Name:{startMessage.Name}, LotId:{startMessage.LotId}, PPID:{startMessage.PPID}, Slots:[{slots}]");
             await _secsEfemGrpc.SendStartMeasurementToClientsAsync(targets, startMessage, cancellationToken);
             await TryReplyS2F42Async(primaryMessage, hcack: 0, cancellationToken);
         }
@@ -125,6 +132,12 @@ public sealed class RemoteCommandPrimaryMessageHandler : IPrimaryMessageHandler
             var paramName = (nameItem.GetString() ?? string.Empty).Trim();
             if (string.IsNullOrEmpty(paramName))
                 continue;
+
+            if (string.Equals(paramName, "NAME", StringComparison.OrdinalIgnoreCase))
+            {
+                startMessage.Name = TryReadAsString(valueItem) ?? startMessage.Name;
+                continue;
+            }
 
             if (string.Equals(paramName, "LOTID", StringComparison.OrdinalIgnoreCase))
             {
