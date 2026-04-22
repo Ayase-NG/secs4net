@@ -1,17 +1,53 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace SECSdata
 {
+    /// <summary>
+    /// S2F42 Remote Command Acknowledge 数据模型。
+    /// 常见结构：L[2] { HCACK(B[1]), PARAM_ACK_LIST(L[n]{CPNAME,CPACK}) }
+    /// </summary>
     public class S2F42_data
     {
-        // 主机命令确认码 (HCACK)
+        /// <summary>
+        /// 主机命令确认码 (HCACK)，Binary 1 byte。
+        /// </summary>
         public byte HCACK { get; set; }
-        // 当 HCACK=1 时，返回不支持的命令（ASCII 字符串）。当 HCACK=0 或 2 时，此字段可忽略或置空。
-        public required string ErrorRCMD { get; set; }
+
+        /// <summary>
+        /// 参数确认列表。Key=CPNAME, Value=CPACK。
+        /// </summary>
+        public Dictionary<string, byte> ParameterAcks { get; set; } = new();
+
         public bool IsSuccess => HCACK == 0;
+
+        /// <summary>
+        /// 向后兼容旧字段：仅映射到首个参数名（若存在）。
+        /// </summary>
+        [Obsolete("Use ParameterAcks instead.")]
+        public string ErrorRCMD
+        {
+            get
+            {
+                foreach (var kv in ParameterAcks)
+                {
+                    return kv.Key;
+                }
+                return string.Empty;
+            }
+            set
+            {
+                if (string.IsNullOrWhiteSpace(value)) return;
+                if (!ParameterAcks.ContainsKey(value))
+                {
+                    ParameterAcks[value] = 1;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 时间戳，用于内部记录发送时间和打印日志，单位为UTC时间。
+        /// </summary>
+        public DateTime timeStamp { get; set; } = DateTime.UtcNow;
     }
 }

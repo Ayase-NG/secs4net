@@ -1,0 +1,186 @@
+syntax = "proto3";
+
+option csharp_namespace = "SECSGrpcService";
+
+package GY.SECS;
+
+// 通用消息定义（仅放可复用 message / enum，不放 service）。
+// 由 `secs.proto`（主动外发）和 `efem.proto`（被动接收）共同引用。
+
+// ===== EFEM 控制相关 =====
+
+// 开始检测请求。
+message StartMessage {
+  // 请求发起方名称（模块名/设备名）。
+  string name = 1;
+
+  // 批次 ID。
+  string lotId = 2;
+
+  // 配方 ID（PPID）。
+  string PPID = 4;
+
+  // 本次要处理的晶圆槽位列表。
+  repeated uint32 slotsList = 5;
+}
+
+// 晶圆上下文信息（用于停止/暂停/恢复/结果上报等）。
+message WaferMessage {
+  // 晶圆槽位。
+  string slotId = 1;
+
+  // 晶圆 ID。
+  string waferId = 2;
+
+  // 批次 ID。
+  string lotId = 3;
+
+  // 检测状态（建议由业务约定枚举值）。
+  string status = 4;
+
+  // 配方 ID（PPID）。
+  string PPID = 5;
+
+  // 检测结果（建议由业务约定枚举值）。
+  string result = 6;
+}
+
+// 控制类接口通用响应。
+message ControlReply {
+  // 返回码：0=成功，其他=失败/异常。
+  int32 messageCode = 1;
+
+  // 返回信息。
+  string Message = 2;
+}
+
+// 配方选择请求。
+message RecipeMessage {
+  // 配方名称。
+  string PPName = 1;
+
+  // 配方 ID。
+  string PPID = 2;
+
+  // 晶圆 ID（可选，按业务场景传）。
+  string waferId = 3;
+
+  // 批次 ID（可选，按业务场景传）。
+  string lotId = 4;
+}
+
+// ===== 报警与上报相关 =====
+
+// 报警级别。
+enum AlarmSeverity {
+  // 未指定。
+  UNSPECIFIED = 0;
+
+  // 提示。
+  INFO = 1;
+
+  // 警告。
+  WARNING = 2;
+
+  // 错误。
+  ERROR = 3;
+
+  // 严重错误。
+  CRITICAL = 4;
+}
+
+// 报警上报请求（报警发生）。
+message AlarmReportRequest {
+  // 报警来源（设备/模块）。
+  string source = 1;
+
+  // 报警编号（可映射 ALID）。
+  uint32 alarmId = 2;
+
+  // 报警代码。
+  string alarmCode = 3;
+
+  // 报警文本。
+  string alarmText = 4;
+
+  // 报警级别。
+  AlarmSeverity severity = 5;
+
+  // 发生时间（Unix 毫秒时间戳）。
+  int64 occurredAtUnixMs = 6;
+}
+
+// 报警清除请求（报警恢复）。
+message AlarmClearRequest {
+  // 报警来源（设备/模块）。
+  string source = 1;
+
+  // 报警编号。
+  uint32 alarmId = 2;
+
+  // 清除原因。
+  string clearReason = 3;
+
+  // 清除时间（Unix 毫秒时间戳）。
+  int64 clearedAtUnixMs = 4;
+}
+
+// 报警相关通用回复。
+message AlarmReply {
+  // 返回码：0=成功，其他=失败/异常。
+  int32 messageCode = 1;
+
+  // 返回信息。
+  string message = 2;
+
+  // 请求追踪 ID（可选）。
+  string requestId = 3;
+}
+
+// 查询激活报警请求。
+message QueryActiveAlarmsRequest {
+  // 报警来源过滤（为空表示查询全部来源）。
+  string source = 1;
+}
+
+// 激活报警条目。
+message ActiveAlarm {
+  // 报警来源。
+  string source = 1;
+
+  // 报警编号。
+  uint32 alarmId = 2;
+
+  // 报警代码。
+  string alarmCode = 3;
+
+  // 报警文本。
+  string alarmText = 4;
+
+  // 报警级别。
+  AlarmSeverity severity = 5;
+
+  // 发生时间（Unix 毫秒时间戳）。
+  int64 occurredAtUnixMs = 6;
+}
+
+// 查询激活报警回复。
+message QueryActiveAlarmsReply {
+  // 返回码：0=成功，其他=失败/异常。
+  int32 messageCode = 1;
+
+  // 返回信息。
+  string message = 2;
+
+  // 当前激活报警列表。
+  repeated ActiveAlarm alarms = 3;
+}
+
+// 结果上报回复。
+message ReportReply {
+  // 返回码：0=成功，其他=失败/异常。
+  int32 messageCode = 1;
+
+  // 返回信息。
+  string message = 2;
+}

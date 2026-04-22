@@ -1,9 +1,6 @@
 ﻿using Secs4Net;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using static Secs4Net.Item;
 using SECSdata;
 
@@ -16,43 +13,54 @@ namespace SECSbuilder
     public static class S2F42_builder
     {
         /// <summary>
-        /// 根据确认码和可选的错误参数名构建 S2F42 消息。
+        /// 根据确认码和可选参数确认列表构建 S2F42 消息。
         /// </summary>
-        /// <param name="hcack">命令确认码 (HCACK)，U4 类型：
-        /// 0 = 接受并执行成功
-        /// 1 = 命令不存在（可选，可附带不支持的参数名）
-        /// 2 = 无法执行（如设备状态不允许）
-        /// </param>
-        /// <param name="errorParam">当 HCACK=1 时，可选返回不支持的参数名（ASCII 字符串）。</param>
-        /// <returns>可发送的 SecsMessage 对象。</returns>
-        public static SecsMessage Build(byte hcack, string? errorParam = null)
+        /// <param name="hcack">命令确认码 (HCACK)，Binary 1 byte。</param>
+        /// <param name="parameterAcks">参数确认列表，Key=CPNAME，Value=CPACK。</param>
+        public static SecsMessage Build(byte hcack, IReadOnlyDictionary<string, byte>? parameterAcks = null)
         {
-            // 根据 SEMI E5 标准，S2F42 的消息体格式为：
-            // <L [2]
-            //   <U4 HCACK>
-            //   <A [n] ERROR_PARAM?>
-            // >
-            // 其中 ERROR_PARAM 是可选的，当 HCACK=1 时可用于指示哪个参数无效。
-            var message = new SecsMessage(2, 42, replyExpected: false)
+            var ackItems = new List<Item>();
+            if (parameterAcks != null)
+            {
+                foreach (var kv in parameterAcks)
+                {
+                    ackItems.Add(L(A(kv.Key), B(kv.Value)));
+                }
+            }
+
+            return new SecsMessage(2, 42, replyExpected: false)
             {
                 Name = "RemoteCommandAcknowledge",
                 SecsItem = L(
-                    U4(hcack),                    // HCACK 确认码
-                    A(errorParam ?? string.Empty) // 错误参数名，无则传空字符串
+                    B(hcack),
+                    L(ackItems.ToArray())
                 )
             };
-            return message;
         }
 
         /// <summary>
-        /// 通过 S2F42_Data 数据对象构建消息（可选）。
+        /// 向后兼容：仅传入一个错误参数名时，默认 CPACK=1。
         /// </summary>
-        /// <param name="data">包含 HCACK 和 ErrorParam 的数据对象。</param>
+        public static SecsMessage Build(byte hcack, string? errorParam)
+        {
+            if (string.IsNullOrWhiteSpace(errorParam))
+            {
+                return Build(hcack, (IReadOnlyDictionary<string, byte>?)null);
+            }
+
+            return Build(hcack, new Dictionary<string, byte>
+            {
+                [errorParam] = 1
+            });
+        }
+
+        /// <summary>
+        /// 通过 S2F42_data 数据对象构建消息。
+        /// </summary>
         public static SecsMessage Build(S2F42_data data)
         {
-            if (data == null)
-                throw new System.ArgumentNullException(nameof(data));
-            return Build(data.HCACK, data.ErrorRCMD);
+            ArgumentNullException.ThrowIfNull(data);
+            return Build(data.HCACK, data.ParameterAcks);
         }
     }
 }

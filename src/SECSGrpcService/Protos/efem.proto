@@ -1,43 +1,20 @@
-syntax = "proto3";
+﻿syntax = "proto3";
 
 option csharp_namespace = "SECSGrpcService";
 
 package GY.SECS;
 
-// The message service definition.
-service SECSGrpcService {
-  // 开始检测
-  rpc StartMeasurement (StartMessage) returns (EFEMReply);
-  // 停止检测
-  rpc StopMeasurement (WaferMessage) returns (EFEMReply);
-  // 暂停检测
-  rpc PauseMeasurement (WaferMessage) returns (EFEMReply);
-  // 恢复检测
-  rpc ResumeMeasurement (WaferMessage) returns (EFEMReply);
-  // 配方选择
-  rpc ProcessProgramSelect (RecipeMessage) returns (EFEMReply);
+import "common.proto";
+
+// 被动接收接口定义（本项目作为 gRPC Server）。
+// 说明：本文件存放“外部系统调用本项目”的所有 RPC。
+
+// 结果上报服务。
+service ReportGrpcService {
+  // 外部上报检测结果。
+  rpc ResultReport (WaferMessage) returns (ReportReply);
+
+  // 外部上报报警（报警发生）。
+  rpc ReportAlarm (AlarmReportRequest) returns (AlarmReply);
 }
 
-// The request message containing the user's name.
-message StartMessage {
-  string name = 1;
-  string lotId = 2;
-  string PPID = 4;
-  repeated uint32 slotsList = 5;
-}
-
-message WaferMessage {
-  string slotId = 1;
-
-}
-
-// The response message containing the greetings.
-message EFEMReply {
-  int32 messageCode = 1;
-  string Message = 2;
-}
-
-message RecipeMessage {
-  string PPName = 1;
-  string PPID = 2;
-}

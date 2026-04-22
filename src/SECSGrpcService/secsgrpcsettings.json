@@ -3,5 +3,16 @@
     "Host": "127.0.0.1",
     "Port": 7150,
     "UseHttps": true
+  },
+  "SecsListener": {
+    "Enabled": true,
+    "IsActive": false,
+    "IpAddress": "127.0.0.1",
+    "Port": 5000,
+    "DeviceId": 0,
+    "StartName": "SECS-S2F41",
+    "GrpcTargets": [
+      "http://127.0.0.1:8502"
+    ]
   }
 }

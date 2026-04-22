@@ -1,4 +1,5 @@
 using SECSGrpcService.Services;
+using SECSGrpcService.Services.PrimaryMessageHandlers;
 using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -31,11 +32,16 @@ builder.WebHost.ConfigureKestrel(options =>
 // Add services to the container.
 builder.Services.AddGrpc();
 builder.Services.AddGrpcReflection();
+builder.Services.AddSingleton<SecsEfemGrpc>();
+builder.Services.AddSingleton<IPrimaryMessageHandler, CommunicationPrimaryMessageHandler>();
+builder.Services.AddSingleton<IPrimaryMessageHandler, EventReportPrimaryMessageHandler>();
+builder.Services.AddSingleton<IPrimaryMessageHandler, RemoteCommandPrimaryMessageHandler>();
+builder.Services.AddHostedService<SecsPrimaryMessageListenerService>();
 
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-app.MapGrpcService<SecsEfemGrpc>();
+app.MapGrpcService<ReportGrpc>();
 
 if (app.Environment.IsDevelopment())
 {
@@ -43,5 +49,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.MapGet("/", () => "Communication with gRPC endpoints must be made through a gRPC client. To learn how to create a client, visit: https://go.microsoft.com/fwlink/?linkid=2086909");
+
+Console.WriteLine($"SECSGrpcService 已启动，监听: {(grpcUseHttps ? "https" : "http")}://{grpcHost}:{grpcPort}");
+Console.WriteLine("可测试入口: GY.SECS.ReportGrpcService/ResultReport");
+Console.WriteLine("可测试入口: GY.SECS.ReportGrpcService/ReportAlarm");
+Console.WriteLine("如需持续监听SECS PrimaryMessage，请在配置中设置 SecsListener:Enabled=true");
 
 app.Run();

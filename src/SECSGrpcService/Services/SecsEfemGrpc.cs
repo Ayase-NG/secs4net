@@ -1,11 +1,16 @@
 ﻿using Grpc.Core;
+using Grpc.Net.Client;
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace SECSGrpcService.Services
 {
     /// <summary>
-    /// EFEM gRPC 服务实现，对应 <c>efem.proto</c> 中定义的接口。
+    /// EFEM gRPC 客户端调用封装，对应 <c>secs.proto</c> 中定义的控制类接口。
     /// </summary>
-    public sealed class SecsEfemGrpc : global::SECSGrpcService.SECSGrpcService.SECSGrpcServiceBase
+    public sealed class SecsEfemGrpc
     {
         private readonly ILogger<SecsEfemGrpc> _logger;
 
@@ -14,79 +19,118 @@ namespace SECSGrpcService.Services
             _logger = logger;
         }
 
-        public override Task<EFEMReply> StartMeasurement(StartMessage request, ServerCallContext context)
+        /// <summary>
+        /// 对指定远端地址列表主动发送 StartMeasurement。
+        /// </summary>
+        public async Task SendStartMeasurementToClientsAsync(IEnumerable<string> targetAddresses, StartMessage startMessage, CancellationToken cancellationToken = default)
         {
-            var slots = request.SlotsList?.Count > 0 ? string.Join(",", request.SlotsList) : "<empty>";
-            _logger.LogInformation(
-                "StartMeasurement received. Name={Name}, LotId={LotId}, PPID={PPID}, Slots=[{Slots}], Peer={Peer}",
-                request.Name,
-                request.LotId,
-                request.PPID,
-                slots,
-                context.Peer);
+            if (targetAddresses == null) return;
 
-            return Task.FromResult(new EFEMReply
+            foreach (var address in targetAddresses)
             {
-                MessageCode = 0,
-                Message = $"StartMeasurement OK: lotId={request.LotId}, ppid={request.PPID}, slots={slots}"
-            });
-        }
+                if (string.IsNullOrWhiteSpace(address)) continue;
 
-        public override Task<EFEMReply> StopMeasurement(WaferMessage request, ServerCallContext context)
-        {
-            var rawSlot = request?.SlotId?.Trim() ?? string.Empty;
-            _logger.LogInformation("StopMeasurement received. SlotId={SlotId}, Peer={Peer}", rawSlot, context.Peer);
-
-            if (int.TryParse(rawSlot, out var slot) && slot >= 0 && slot <= 25)
-            {
-                return Task.FromResult(new EFEMReply
+                try
                 {
-                    MessageCode = 0,
-                    Message = string.Empty
-                });
+                    using var channel = GrpcChannel.ForAddress(address);
+                    var client = new global::SECSGrpcService.SECSGrpcService.SECSGrpcServiceClient(channel.CreateCallInvoker());
+
+                    var startCall = client.StartMeasurementAsync(startMessage, cancellationToken: cancellationToken);
+                    var startReply = await startCall.ResponseAsync.ConfigureAwait(false);
+                    _logger.LogInformation("StartMeasurement -> {Address} returned {Code}: {Msg}", address, startReply.MessageCode, startReply.Message);
+                }
+                catch (RpcException rex)
+                {
+                    _logger.LogError(rex, "StartMeasurement RPC to {Address} failed", address);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send StartMeasurement to {Address}", address);
+                }
+
+                if (cancellationToken.IsCancellationRequested) break;
             }
-
-            return Task.FromResult(new EFEMReply
-            {
-                MessageCode = 1,
-                Message = "晶圆序号错误"
-            });
         }
 
-        public override Task<EFEMReply> PauseMeasurement(WaferMessage request, ServerCallContext context)
-            => HandleWaferActionAsync(nameof(PauseMeasurement), request, context);
-
-        public override Task<EFEMReply> ResumeMeasurement(WaferMessage request, ServerCallContext context)
-            => HandleWaferActionAsync(nameof(ResumeMeasurement), request, context);
-
-        public override Task<EFEMReply> ProcessProgramSelect(RecipeMessage request, ServerCallContext context)
+        /// <summary>
+        /// 对指定的远端地址列表依次发起 StartMeasurement / ProcessProgramSelect / PauseMeasurement / ResumeMeasurement / StopMeasurement 请求。
+        /// 每个地址都会创建一个短生命周期的 gRPC 通道并顺序调用这些 RPC（按需可拆分成单独的方法）。
+        /// </summary>
+        public async Task SendStartMeasurementAndRelatedRequestsToClientsAsync(IEnumerable<string> targetAddresses, StartMessage startMessage, RecipeMessage recipeMessage, WaferMessage waferMessage, CancellationToken cancellationToken = default)
         {
-            var ppName = string.IsNullOrWhiteSpace(request.PPName) ? "<empty>" : request.PPName;
-            var ppid = string.IsNullOrWhiteSpace(request.PPID) ? "<empty>" : request.PPID;
+            if (targetAddresses == null) return;
 
-            _logger.LogInformation(
-                "ProcessProgramSelect received. PPName={PPName}, PPID={PPID}, Peer={Peer}",
-                ppName,
-                ppid,
-                context.Peer);
-
-            return Task.FromResult(new EFEMReply
+            foreach (var address in targetAddresses)
             {
-                MessageCode = 0,
-                Message = $"ProcessProgramSelect OK: PPName={ppName}, PPID={ppid}"
-            });
-        }
+                if (string.IsNullOrWhiteSpace(address)) continue;
 
-        private Task<EFEMReply> HandleWaferActionAsync(string action, WaferMessage request, ServerCallContext context)
-        {
-            var slotId = string.IsNullOrWhiteSpace(request.SlotId) ? "<empty>" : request.SlotId;
-            _logger.LogInformation("{Action} received. SlotId={SlotId}, Peer={Peer}", action, slotId, context.Peer);
+                try
+                {
+                    using var channel = GrpcChannel.ForAddress(address);
+                    var client = new global::SECSGrpcService.SECSGrpcService.SECSGrpcServiceClient(channel.CreateCallInvoker());
 
-            return Task.FromResult(new EFEMReply
-            {
-                MessageCode = 0,
-                Message = $"{action} OK: slotId={slotId}"
-            });
+                    try
+                    {
+                        var startCall = client.StartMeasurementAsync(startMessage, cancellationToken: cancellationToken);
+                        var startReply = await startCall.ResponseAsync.ConfigureAwait(false);
+                        _logger.LogInformation("StartMeasurement -> {Address} returned {Code}: {Msg}", address, startReply.MessageCode, startReply.Message);
+                    }
+                    catch (RpcException rex)
+                    {
+                        _logger.LogError(rex, "StartMeasurement RPC to {Address} failed", address);
+                    }
+
+                    try
+                    {
+                        var procCall = client.ProcessProgramSelectAsync(recipeMessage, cancellationToken: cancellationToken);
+                        var procReply = await procCall.ResponseAsync.ConfigureAwait(false);
+                        _logger.LogInformation("ProcessProgramSelect -> {Address} returned {Code}: {Msg}", address, procReply.MessageCode, procReply.Message);
+                    }
+                    catch (RpcException rex)
+                    {
+                        _logger.LogError(rex, "ProcessProgramSelect RPC to {Address} failed", address);
+                    }
+
+                    try
+                    {
+                        var pauseCall = client.PauseMeasurementAsync(waferMessage, cancellationToken: cancellationToken);
+                        var pauseReply = await pauseCall.ResponseAsync.ConfigureAwait(false);
+                        _logger.LogInformation("PauseMeasurement -> {Address} returned {Code}: {Msg}", address, pauseReply.MessageCode, pauseReply.Message);
+                    }
+                    catch (RpcException rex)
+                    {
+                        _logger.LogError(rex, "PauseMeasurement RPC to {Address} failed", address);
+                    }
+
+                    try
+                    {
+                        var resumeCall = client.ResumeMeasurementAsync(waferMessage, cancellationToken: cancellationToken);
+                        var resumeReply = await resumeCall.ResponseAsync.ConfigureAwait(false);
+                        _logger.LogInformation("ResumeMeasurement -> {Address} returned {Code}: {Msg}", address, resumeReply.MessageCode, resumeReply.Message);
+                    }
+                    catch (RpcException rex)
+                    {
+                        _logger.LogError(rex, "ResumeMeasurement RPC to {Address} failed", address);
+                    }
+
+                    try
+                    {
+                        var stopCall = client.StopMeasurementAsync(waferMessage, cancellationToken: cancellationToken);
+                        var stopReply = await stopCall.ResponseAsync.ConfigureAwait(false);
+                        _logger.LogInformation("StopMeasurement -> {Address} returned {Code}: {Msg}", address, stopReply.MessageCode, stopReply.Message);
+                    }
+                    catch (RpcException rex)
+                    {
+                        _logger.LogError(rex, "StopMeasurement RPC to {Address} failed", address);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send requests to {Address}", address);
+                }
+
+                if (cancellationToken.IsCancellationRequested) break;
+            }
         }
     }
 }

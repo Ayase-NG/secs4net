@@ -12,6 +12,10 @@
 		<PackageReference Include="FluentAssertions" Version="7.2.0" />
 		<PackageReference Include="Grpc.AspNetCore.Server" Version="2.76.0" />
 		<PackageReference Include="Grpc.Net.Client" Version="2.76.0" />
+		<PackageReference Include="Grpc.Tools" Version="2.76.0">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
      <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="8.0.0" />
 		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
 		<PackageReference Include="nacos-sdk-csharp.AspNetCore" Version="1.3.10" />
@@ -35,6 +39,11 @@
 		<Compile Include="..\..\common\ItemAssertions.cs" Link="common\ItemAssertions.cs" />
 		<Compile Include="..\..\common\Usings.cs" Link="common\Usings.cs" />
 		<Compile Include="..\..\common\RuntimeHelpers.cs" Link="common\RuntimeHelpers.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Protobuf Include="..\..\src\SECSGrpcService\Protos\common.proto" GrpcServices="None" ProtoRoot="..\..\src\SECSGrpcService\Protos" Link="Protos\common.proto" />
+		<Protobuf Include="..\..\src\SECSGrpcService\Protos\secs.proto" GrpcServices="Both" ProtoRoot="..\..\src\SECSGrpcService\Protos" Link="Protos\secs.proto" />
 	</ItemGroup>
 
 </Project>
