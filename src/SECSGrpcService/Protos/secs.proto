@@ -2,7 +2,7 @@ syntax = "proto3";
 
 option csharp_namespace = "SECSGrpcService";
 
-package GY.SECS;
+package GY.EFEM;
 
 import "common.proto";
 
@@ -10,26 +10,26 @@ import "common.proto";
 // 说明：本文件只定义本项目“向外部服务发起调用”的 RPC。
 service EFEM {
   // 开始检测。
-  rpc StartMeasurement (StartMessage) returns (ControlReply);
+  rpc StartMeasurement (.GY.EFEM.StartMessage) returns (.GY.EFEM.ControlReply);
 
   // 停止检测。
-  rpc StopMeasurement (WaferMessage) returns (ControlReply);
+  rpc StopMeasurement (.GY.EFEM.WaferMessage) returns (.GY.EFEM.ControlReply);
 
   // 暂停检测。
-  rpc PauseMeasurement (WaferMessage) returns (ControlReply);
+  rpc PauseMeasurement (.GY.EFEM.WaferMessage) returns (.GY.EFEM.ControlReply);
 
   // 恢复检测。
-  rpc ResumeMeasurement (WaferMessage) returns (ControlReply);
+  rpc ResumeMeasurement (.GY.EFEM.WaferMessage) returns (.GY.EFEM.ControlReply);
 
   // 配方选择。
-  rpc ProcessProgramSelect (RecipeMessage) returns (ControlReply);
+  rpc ProcessProgramSelect (.GY.EFEM.RecipeMessage) returns (.GY.EFEM.ControlReply);
 }
 
 // 报警相关主动外发服务。
 service AlarmGrpcService {
   // 主动清除报警（报警恢复）。
-  rpc ClearAlarm (AlarmClearRequest) returns (AlarmReply);
+  rpc ClearAlarm (.GY.EFEM.AlarmClearRequest) returns (.GY.EFEM.AlarmReply);
 
   // 主动查询当前激活报警。
-  rpc QueryActiveAlarms (QueryActiveAlarmsRequest) returns (QueryActiveAlarmsReply);
+  rpc QueryActiveAlarms (.GY.EFEM.QueryActiveAlarmsRequest) returns (.GY.EFEM.QueryActiveAlarmsReply);
 }

@@ -2,7 +2,7 @@
 
 option csharp_namespace = "SECSGrpcService";
 
-package GY.SECS;
+package GY.EFEM;
 
 import "common.proto";
 

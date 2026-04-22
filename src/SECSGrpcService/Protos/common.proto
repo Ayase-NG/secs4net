@@ -2,7 +2,7 @@ syntax = "proto3";
 
 option csharp_namespace = "SECSGrpcService";
 
-package GY.SECS;
+package GY.EFEM;
 
 // 通用消息定义（仅放可复用 message / enum，不放 service）。
 // 由 `secs.proto`（主动外发）和 `efem.proto`（被动接收）共同引用。
