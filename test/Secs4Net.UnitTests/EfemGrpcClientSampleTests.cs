@@ -28,7 +28,7 @@ public class EfemGrpcClientSampleTests
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         using var channel = GrpcChannel.ForAddress(endpoint);
-        var client = new global::SECSGrpcService.SECSGrpcService.SECSGrpcServiceClient(channel.CreateCallInvoker());
+        var client = new global::SECSGrpcService.EFEM.EFEMClient(channel.CreateCallInvoker());
 
         var startReply = await client.StartMeasurementAsync(new global::SECSGrpcService.StartMessage
         {

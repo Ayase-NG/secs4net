@@ -33,7 +33,7 @@ namespace SECSGrpcService.Services
                 try
                 {
                     using var channel = GrpcChannel.ForAddress(address);
-                    var client = new global::SECSGrpcService.SECSGrpcService.SECSGrpcServiceClient(channel.CreateCallInvoker());
+                    var client = new global::SECSGrpcService.EFEM.EFEMClient(channel.CreateCallInvoker());
 
                     var startCall = client.StartMeasurementAsync(startMessage, cancellationToken: cancellationToken);
                     var startReply = await startCall.ResponseAsync.ConfigureAwait(false);
@@ -67,7 +67,7 @@ namespace SECSGrpcService.Services
                 try
                 {
                     using var channel = GrpcChannel.ForAddress(address);
-                    var client = new global::SECSGrpcService.SECSGrpcService.SECSGrpcServiceClient(channel.CreateCallInvoker());
+                    var client = new global::SECSGrpcService.EFEM.EFEMClient(channel.CreateCallInvoker());
 
                     try
                     {

@@ -8,7 +8,7 @@ import "common.proto";
 
 // 主动外发接口定义（本项目作为 gRPC Client）。
 // 说明：本文件只定义本项目“向外部服务发起调用”的 RPC。
-service SECSGrpcService {
+service EFEM {
   // 开始检测。
   rpc StartMeasurement (StartMessage) returns (ControlReply);
 
