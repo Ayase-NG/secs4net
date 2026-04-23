@@ -13,17 +13,20 @@ public sealed class SecsPrimaryMessageListenerService : BackgroundService
     private readonly ILogger<SecsPrimaryMessageListenerService> _logger;
     private readonly IConfiguration _configuration;
     private readonly IReadOnlyDictionary<(int S, int F), IPrimaryMessageHandler> _handlerRoutes;
+    private readonly SecsGemContext _secsGemContext;
     private HsmsConnection? _connector;
     private SecsGem? _secsGem;
 
     public SecsPrimaryMessageListenerService(
         ILogger<SecsPrimaryMessageListenerService> logger,
         IConfiguration configuration,
-        IEnumerable<IPrimaryMessageHandler> handlers)
+        IEnumerable<IPrimaryMessageHandler> handlers,
+        SecsGemContext secsGemContext)
     {
         _logger = logger;
         _configuration = configuration;
         _handlerRoutes = BuildRoutes(handlers);
+        _secsGemContext = secsGemContext;
     }
 
     /// <summary>
@@ -64,6 +67,7 @@ public sealed class SecsPrimaryMessageListenerService : BackgroundService
         // 初始化 HSMS 连接与 SECS/GEM 通讯对象。
         _connector = new HsmsConnection(options, new SecsGemLoggerAdapter(_logger));
         _secsGem = new SecsGem(options, _connector, new SecsGemLoggerAdapter(_logger));
+        _secsGemContext.Attach(_secsGem);
 
         // 连接状态变化日志。
         _connector.ConnectionChanged += (_, state) =>
@@ -113,6 +117,12 @@ public sealed class SecsPrimaryMessageListenerService : BackgroundService
             {
                 await _connector.DisposeAsync();
             }
+
+            if (_secsGem is not null)
+            {
+                _secsGemContext.Detach(_secsGem);
+            }
+
             _secsGem?.Dispose();
             _connector = null;
             _secsGem = null;

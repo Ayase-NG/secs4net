@@ -33,6 +33,7 @@ builder.WebHost.ConfigureKestrel(options =>
 // Add services to the container.
 builder.Services.AddGrpc();
 builder.Services.AddGrpcReflection();
+builder.Services.AddSingleton<SecsGemContext>();
 builder.Services.AddSingleton<SecsEfemGrpc>();
 builder.Services.AddSingleton<IStartMeasurementDispatcher, GrpcStartMeasurementDispatcher>();
 

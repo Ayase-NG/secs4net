@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using System.Linq;
 using SECShandler.Interfaces;
 using SECShandler.Handlers;
+using SECShandler.Functions;
 using System.Threading.Tasks;
 
 namespace SecsDevice;
@@ -146,14 +147,32 @@ public partial class Form1 : Form
 
                 try
                 {
-                    if (routes.TryGetValue((msg.S, msg.F), out var handler))
+                    switch ((msg.S, msg.F))
                     {
-                        await handler.HandleAsync(_secsGem, primaryMessage, _cancellationTokenSource.Token);
-                    }
-                    else
-                    {
-                        // 不支持的 SF，回复 S9F7
-                        // await ReplyNotSupported(primaryMessage);
+                        case (1, 13):
+                            await CommunicationSxFyFunctions.HandleS1F13ReplyAsync(_secsGem, testDevice, primaryMessage);
+                            break;
+
+                        case (1, 1):
+                            await CommunicationSxFyFunctions.HandleS1F1ReplyAsync(_secsGem, testDevice, primaryMessage);
+                            break;
+
+                        case (2, 33):
+                            await EventReportSxFyFunctions.HandleS2F33ReplyAsync(primaryMessage, reportStorage);
+                            break;
+                        case (2, 35):
+                            await EventReportSxFyFunctions.HandleS2F35ReplyAsync(primaryMessage, reportStorage, eventLinkStorage);
+                            break;
+                        case (2, 37):
+                            await EventReportSxFyFunctions.HandleS2F37ReplyAsync(primaryMessage, eventLinkStorage, eventEnableStorage);
+                            break;
+
+                        default:
+                            if (routes.TryGetValue((msg.S, msg.F), out var routeHandler))
+                            {
+                                await routeHandler.HandleAsync(_secsGem, primaryMessage, _cancellationTokenSource.Token);
+                            }
+                            break;
                     }
                 }
                 catch (Exception ex)
