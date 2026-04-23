@@ -1,5 +1,6 @@
 using SECSGrpcService.Services;
-using SECSGrpcService.Services.PrimaryMessageHandlers;
+using SECShandler.Handlers;
+using SECShandler.Interfaces;
 using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -33,6 +34,15 @@ builder.WebHost.ConfigureKestrel(options =>
 builder.Services.AddGrpc();
 builder.Services.AddGrpcReflection();
 builder.Services.AddSingleton<SecsEfemGrpc>();
+builder.Services.AddSingleton<IStartMeasurementDispatcher, GrpcStartMeasurementDispatcher>();
+
+// SECShandler 运行时状态与依赖（统一单例，供多个 handler 共享）
+builder.Services.AddSingleton<SecsHandlerRuntimeState>();
+builder.Services.AddSingleton<IDevice>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
+builder.Services.AddSingleton<IReportStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
+builder.Services.AddSingleton<IEventLinkStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
+builder.Services.AddSingleton<IEventEnableStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
+
 builder.Services.AddSingleton<IPrimaryMessageHandler, CommunicationPrimaryMessageHandler>();
 builder.Services.AddSingleton<IPrimaryMessageHandler, EventReportPrimaryMessageHandler>();
 builder.Services.AddSingleton<IPrimaryMessageHandler, RemoteCommandPrimaryMessageHandler>();

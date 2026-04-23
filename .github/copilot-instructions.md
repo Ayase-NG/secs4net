@@ -6,3 +6,7 @@
 ## gRPC Method Organization
 - `efem.proto` should contain all gRPC receiving (server-side) methods.
 - `secs.proto` should contain all proactively outgoing (client-side) methods.
+
+## Architectural Preferences
+- Keep `CommunicationPrimaryMessageHandler` as the orchestration/state layer.
+- Centralize concrete `HandleSxFyAsync` implementations in shared function files reused by handlers.

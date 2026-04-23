@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Options;
 using Secs4Net;
-using SECSGrpcService.Services.PrimaryMessageHandlers;
+using SECShandler.Interfaces;
 
 namespace SECSGrpcService.Services;
 
@@ -12,7 +12,7 @@ public sealed class SecsPrimaryMessageListenerService : BackgroundService
 {
     private readonly ILogger<SecsPrimaryMessageListenerService> _logger;
     private readonly IConfiguration _configuration;
-    private readonly IReadOnlyList<IPrimaryMessageHandler> _handlers;
+    private readonly IReadOnlyDictionary<(int S, int F), IPrimaryMessageHandler> _handlerRoutes;
     private HsmsConnection? _connector;
     private SecsGem? _secsGem;
 
@@ -23,7 +23,7 @@ public sealed class SecsPrimaryMessageListenerService : BackgroundService
     {
         _logger = logger;
         _configuration = configuration;
-        _handlers = handlers.ToList();
+        _handlerRoutes = BuildRoutes(handlers);
     }
 
     /// <summary>
@@ -90,7 +90,7 @@ public sealed class SecsPrimaryMessageListenerService : BackgroundService
 
                 try
                 {
-                    await DispatchPrimaryMessageAsync(primaryMessage, stoppingToken);
+                    await DispatchPrimaryMessageAsync(_secsGem, primaryMessage, stoppingToken);
                 }
                 catch (Exception ex)
                 {
@@ -119,18 +119,37 @@ public sealed class SecsPrimaryMessageListenerService : BackgroundService
         }
     }
 
-    private async Task DispatchPrimaryMessageAsync(PrimaryMessageWrapper primaryMessage, CancellationToken cancellationToken)
+    private async Task DispatchPrimaryMessageAsync(SecsGem secsGem, PrimaryMessageWrapper primaryMessage, CancellationToken cancellationToken)
     {
         var msg = primaryMessage.PrimaryMessage;
-        var handler = _handlers.FirstOrDefault(h => h.CanHandle(msg.S, msg.F));
 
-        if (handler is null)
+        if (!_handlerRoutes.TryGetValue((msg.S, msg.F), out var handler))
         {
             _logger.LogInformation("尚未实现的 SF: S{S}F{F}", msg.S, msg.F);
             return;
         }
 
-        await handler.HandleAsync(primaryMessage, cancellationToken);
+        await handler.HandleAsync(secsGem, primaryMessage, cancellationToken);
+    }
+
+    private static IReadOnlyDictionary<(int S, int F), IPrimaryMessageHandler> BuildRoutes(IEnumerable<IPrimaryMessageHandler> handlers)
+    {
+        var routes = new Dictionary<(int S, int F), IPrimaryMessageHandler>();
+
+        foreach (var handler in handlers)
+        {
+            foreach (var sf in handler.SupportedMessages)
+            {
+                if (routes.TryGetValue(sf, out var existed))
+                {
+                    throw new InvalidOperationException($"Duplicate SECS handler route registered for S{sf.S}F{sf.F}: {existed.GetType().Name} and {handler.GetType().Name}.");
+                }
+
+                routes[sf] = handler;
+            }
+        }
+
+        return routes;
     }
 
     private sealed class SecsGemLoggerAdapter : ISecsGemLogger

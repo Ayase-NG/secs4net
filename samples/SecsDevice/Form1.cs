@@ -115,15 +115,26 @@ public partial class Form1 : Form
         _connector.Start(_cancellationTokenSource.Token);
         btnDisable.Enabled = true;
 
-        // 创建测试用设备实现和通信处理器，用于将解析后的数据传递给 Handler 进行处理
         var testDevice = new TestDevice();
-        var commHandler = new CommunicationHandler(_secsGem!, testDevice);
 
-        // 创建简单的内存存储实现并传入 DefineEventReportHandler，便于在 samples 中测试
         var reportStorage = new InMemoryReportStorage();
         var eventLinkStorage = new InMemoryEventLinkStorage();
         var eventEnableStorage = new InMemoryEventEnableStorage();
-        var derHandler = new DefineEventReportHandler(_secsGem!, reportStorage, eventLinkStorage, eventEnableStorage);
+
+        var primaryHandlers = new List<IPrimaryMessageHandler>
+        {
+            new CommunicationPrimaryMessageHandler(testDevice),
+            new EventReportPrimaryMessageHandler(reportStorage, eventLinkStorage, eventEnableStorage),
+        };
+
+        var routes = new Dictionary<(int S, int F), IPrimaryMessageHandler>();
+        foreach (var handler in primaryHandlers)
+        {
+            foreach (var sf in handler.SupportedMessages)
+            {
+                routes[sf] = handler;
+            }
+        }
 
         try
         {
@@ -135,39 +146,19 @@ public partial class Form1 : Form
 
                 try
                 {
-                    // 使用 C# 8.0 的 switch 表达式，根据 (S, F) 元组进行匹配
-                    switch ((msg.S, msg.F))
+                    if (routes.TryGetValue((msg.S, msg.F), out var handler))
                     {
-                        case (1, 13): // S1F13 建立通信请求
-                            await commHandler.HandleS1F13ReplyAsync(primaryMessage);
-                            break;
-
-                        case (1, 1):  // S1F1 在线查询
-                            await commHandler.HandleS1F1ReplyAsync(primaryMessage);
-                            break;
-
-                        case (2, 33): // S2F33 定义报告
-                            await derHandler.HandleS2F33ReplyAsync(primaryMessage);
-                            break;
-                        case (2, 35): // S2F35 删除报告
-                            await derHandler.HandleS2F35ReplyAsync(primaryMessage);
-                            break;
-                        case (2, 37): // S2F37 启用报告
-                            await derHandler.HandleS2F37ReplyAsync(primaryMessage);
-                            break;
-                        // 可以继续添加其他需要测试的消息，例如 S2F35, S2F37
-                        // case (2, 35): ...
-
-                        default:
-                            // 不支持的 SF，回复 S9F7
-                            //await ReplyNotSupported(primaryMessage);
-                            break;
+                        await handler.HandleAsync(_secsGem, primaryMessage, _cancellationTokenSource.Token);
+                    }
+                    else
+                    {
+                        // 不支持的 SF，回复 S9F7
+                        // await ReplyNotSupported(primaryMessage);
                     }
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"处理消息时出错: {ex.Message}");
-                    // 可以选择回复 S9F1 或其他错误消息
                 }
             }
         }

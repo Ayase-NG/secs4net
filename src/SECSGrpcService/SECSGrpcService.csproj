@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Secs4Net\Secs4Net.csproj" />
+    <ProjectReference Include="..\Messages\Handlers\SECShandler\SECShandler.csproj" />
   </ItemGroup>
 
 </Project>

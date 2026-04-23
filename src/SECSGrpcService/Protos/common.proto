@@ -17,8 +17,8 @@ message StartMessage {
   // 批次 ID。
   string lotId = 2;
 
-  // 是否全自动（true=全自动，false=半自动/手动）。
-  //bool isAuto = 3;
+  // 选择测试模式，全自动00，半自动01，分拣02。
+  string mode = 3;
 
   // 配方 ID（PPID）。
   string PPID = 4;

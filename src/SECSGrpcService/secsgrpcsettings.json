@@ -1,10 +1,13 @@
 {
+  "_comment": "SECSGrpcService 配置文件。",
   "Grpc": {
+    "_comment": "gRPC 服务端监听配置（本项目对外提供 ReportGrpcService）。",
     "Host": "127.0.0.1",
     "Port": 7150,
     "UseHttps": true
   },
   "SecsListener": {
+    "_comment": "SECS/HSMS 持续监听配置（用于接收 EAP 发来的 PrimaryMessage）。",
     "Enabled": true,
     "IsActive": false,
     "IpAddress": "127.0.0.1",
@@ -13,6 +16,12 @@
     "StartName": "SECS-S2F41",
     "GrpcTargets": [
       "http://127.0.0.1:8502"
-    ]
+    ],
+    "_comment_Enabled": "是否启用 SECS 持续监听。false 时仅启动 gRPC，不启动 HSMS 连接。",
+    "_comment_IsActive": "HSMS 连接角色：true=主动连接对端（Active），false=被动监听等待对端连接（Passive）。",
+    "_comment_IpAddress_Port": "IsActive=true 时表示对端地址；IsActive=false 时表示本地监听地址。",
+    "_comment_DeviceId": "设备 ID，必须与对端发送消息头中的 DeviceId 匹配，否则会被判定为 Unrecognized Device Id。",
+    "_comment_StartName": "当 S2F41 START 未携带 NAME 参数时，作为 StartMessage.Name 的默认值。",
+    "_comment_GrpcTargets": "S2F41 START 触发后，向这些目标地址外发 gRPC StartMeasurement。可配置多个地址。"
   }
 }
