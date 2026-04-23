@@ -1,9 +1,5 @@
 ﻿using Grpc.Core;
 using Grpc.Net.Client;
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace SECSGrpcService.Services
 {
@@ -13,10 +9,27 @@ namespace SECSGrpcService.Services
     public sealed class SecsEfemGrpc
     {
         private readonly ILogger<SecsEfemGrpc> _logger;
+        private readonly NacosGrpcResolver _nacosGrpcResolver;
 
-        public SecsEfemGrpc(ILogger<SecsEfemGrpc> logger)
+        public SecsEfemGrpc(ILogger<SecsEfemGrpc> logger, NacosGrpcResolver nacosGrpcResolver)
         {
             _logger = logger;
+            _nacosGrpcResolver = nacosGrpcResolver;
+        }
+
+        /// <summary>
+        /// 从 Nacos 动态发现服务实例后发送 StartMeasurement。
+        /// </summary>
+        public async Task SendStartMeasurementToServiceAsync(
+            string serviceName,
+            string groupName,
+            IEnumerable<string>? clusters,
+            bool useHttps,
+            StartMessage startMessage,
+            CancellationToken cancellationToken = default)
+        {
+            var addresses = await _nacosGrpcResolver.ResolveAddressesAsync(serviceName, groupName, clusters, useHttps, cancellationToken);
+            await SendStartMeasurementToClientsAsync(addresses, startMessage, cancellationToken);
         }
 
         /// <summary>

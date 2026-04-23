@@ -20,11 +20,15 @@ public sealed class GrpcStartMeasurementDispatcher : IStartMeasurementDispatcher
 
     public async Task DispatchStartMeasurementAsync(StartMeasurementDispatchRequest request, CancellationToken cancellationToken)
     {
-        var targets = _configuration.GetSection("SecsListener:GrpcTargets").Get<string[]>() ?? Array.Empty<string>();
-        if (targets.Length == 0)
+        var targetServiceName = _configuration.GetValue<string>("SecsListener:GrpcTargetServiceName");
+        if (string.IsNullOrWhiteSpace(targetServiceName))
         {
-            throw new InvalidOperationException("未配置 SecsListener:GrpcTargets，无法触发 StartMeasurement。");
+            throw new InvalidOperationException("未配置 SecsListener:GrpcTargetServiceName，无法通过 Nacos 发现目标服务。");
         }
+
+        var targetGroup = _configuration.GetValue<string>("SecsListener:GrpcTargetGroupName") ?? "DEFAULT_GROUP";
+        var targetClusters = _configuration.GetSection("SecsListener:GrpcTargetClusters").Get<string[]>() ?? Array.Empty<string>();
+        var targetUseHttps = _configuration.GetValue<bool>("SecsListener:GrpcTargetUseHttps", false);
 
         var fallbackName = _configuration.GetValue<string>("SecsListener:StartName") ?? "SECS-S2F41";
         var startMessage = new StartMessage
@@ -47,6 +51,12 @@ public sealed class GrpcStartMeasurementDispatcher : IStartMeasurementDispatcher
             slots);
         Console.WriteLine($"S2F41 START 触发 gRPC StartMeasurement，Name:{startMessage.Name}, LotId:{startMessage.LotId}, PPID:{startMessage.PPID}, Slots:[{slots}]");
 
-        await _secsEfemGrpc.SendStartMeasurementToClientsAsync(targets, startMessage, cancellationToken);
+        await _secsEfemGrpc.SendStartMeasurementToServiceAsync(
+            targetServiceName,
+            targetGroup,
+            targetClusters,
+            targetUseHttps,
+            startMessage,
+            cancellationToken);
     }
 }

@@ -1,3 +1,4 @@
+using Nacos.AspNetCore.V2;
 using SECSGrpcService.Services;
 using SECShandler.Handlers;
 using SECShandler.Interfaces;
@@ -33,6 +34,11 @@ builder.WebHost.ConfigureKestrel(options =>
 // Add services to the container.
 builder.Services.AddGrpc();
 builder.Services.AddGrpcReflection();
+
+// Nacos 服务注册（配置来源：secsgrpcsettings.json -> nacos 节点）
+builder.Services.AddNacosAspNet(builder.Configuration, "nacos");
+
+builder.Services.AddSingleton<NacosGrpcResolver>();
 builder.Services.AddSingleton<SecsGemContext>();
 builder.Services.AddSingleton<SecsEfemGrpc>();
 builder.Services.AddSingleton<IStartMeasurementDispatcher, GrpcStartMeasurementDispatcher>();
