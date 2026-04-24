@@ -4,22 +4,22 @@
     "_comment": "gRPC 服务端监听配置（本项目对外提供 ReportGrpcService）。",
     "Host": "127.0.0.1",
     "Port": 7150,
-    "UseHttps": true
+    "UseHttps": false
   },
   "SecsListener": {
     "_comment": "SECS/HSMS 持续监听配置（用于接收 EAP 发来的 PrimaryMessage）。",
     "Enabled": true,
     "IsActive": false,
     "IpAddress": "127.0.0.1",
-    "Port": 5000,
+    "Port": 5050,
     "DeviceId": 0,
     "StartName": "测试",
-    "GrpcTargetServiceName": "SECS",
+    "GrpcTargetServiceName": "EFEM",
     "GrpcTargetGroupName": "GY",
     "GrpcTargetClusters": [
       "DEFAULT"
     ],
-    "GrpcTargetUseHttps": true,
+    "GrpcTargetUseHttps": false,
     "_comment_Enabled": "是否启用 SECS 持续监听。false 时仅启动 gRPC，不启动 HSMS 连接。",
     "_comment_IsActive": "HSMS 连接角色：true=主动连接对端（Active），false=被动监听等待对端连接（Passive）。",
     "_comment_IpAddress_Port": "IsActive=true 时表示对端地址；IsActive=false 时表示本地监听地址。",

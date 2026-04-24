@@ -1,8 +1,7 @@
 ﻿syntax = "proto3";
 
-option csharp_namespace = "SECSGrpcService";
 
-package GY.EFEM;
+package GY.SECS;
 
 import "common.proto";
 
@@ -12,9 +11,9 @@ import "common.proto";
 // 结果上报服务。
 service ReportGrpcService {
   // 外部上报检测结果。
-  rpc ResultReport (WaferMessage) returns (ReportReply);
+  rpc ResultReport (.GY.EFEM.WaferMessage) returns (.GY.EFEM.ReportReply);
 
   // 外部上报报警（报警发生）。
-  rpc ReportAlarm (AlarmReportRequest) returns (AlarmReply);
+  rpc ReportAlarm (.GY.EFEM.AlarmReportRequest) returns (.GY.EFEM.AlarmReply);
 }
 

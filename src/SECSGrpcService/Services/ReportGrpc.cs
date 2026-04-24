@@ -7,7 +7,7 @@ namespace SECSGrpcService.Services;
 /// <summary>
 /// 上报相关 gRPC 服务实现，对应 <c>efem.proto</c>。
 /// </summary>
-public sealed class ReportGrpc : global::SECSGrpcService.ReportGrpcService.ReportGrpcServiceBase
+public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
 {
     private readonly ILogger<ReportGrpc> _logger;
     private readonly SecsGemContext _secsGemContext;
