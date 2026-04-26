@@ -32,6 +32,54 @@ namespace SECSGrpcService.Services
             await SendStartMeasurementToClientsAsync(addresses, startMessage, cancellationToken);
         }
 
+        public async Task SendStopMeasurementToServiceAsync(
+            string serviceName,
+            string groupName,
+            IEnumerable<string>? clusters,
+            bool useHttps,
+            WaferMessage waferMessage,
+            CancellationToken cancellationToken = default)
+        {
+            var addresses = await _nacosGrpcResolver.ResolveAddressesAsync(serviceName, groupName, clusters, useHttps, cancellationToken);
+            await SendStopMeasurementToClientsAsync(addresses, waferMessage, cancellationToken);
+        }
+
+        public async Task SendPauseMeasurementToServiceAsync(
+            string serviceName,
+            string groupName,
+            IEnumerable<string>? clusters,
+            bool useHttps,
+            WaferMessage waferMessage,
+            CancellationToken cancellationToken = default)
+        {
+            var addresses = await _nacosGrpcResolver.ResolveAddressesAsync(serviceName, groupName, clusters, useHttps, cancellationToken);
+            await SendPauseMeasurementToClientsAsync(addresses, waferMessage, cancellationToken);
+        }
+
+        public async Task SendResumeMeasurementToServiceAsync(
+            string serviceName,
+            string groupName,
+            IEnumerable<string>? clusters,
+            bool useHttps,
+            WaferMessage waferMessage,
+            CancellationToken cancellationToken = default)
+        {
+            var addresses = await _nacosGrpcResolver.ResolveAddressesAsync(serviceName, groupName, clusters, useHttps, cancellationToken);
+            await SendResumeMeasurementToClientsAsync(addresses, waferMessage, cancellationToken);
+        }
+
+        public async Task SendProcessProgramSelectToServiceAsync(
+            string serviceName,
+            string groupName,
+            IEnumerable<string>? clusters,
+            bool useHttps,
+            RecipeMessage recipeMessage,
+            CancellationToken cancellationToken = default)
+        {
+            var addresses = await _nacosGrpcResolver.ResolveAddressesAsync(serviceName, groupName, clusters, useHttps, cancellationToken);
+            await SendProcessProgramSelectToClientsAsync(addresses, recipeMessage, cancellationToken);
+        }
+
         /// <summary>
         /// 对指定远端地址列表主动发送 StartMeasurement。
         /// </summary>
@@ -59,6 +107,122 @@ namespace SECSGrpcService.Services
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Failed to send StartMeasurement to {Address}", address);
+                }
+
+                if (cancellationToken.IsCancellationRequested) break;
+            }
+        }
+
+        public async Task SendStopMeasurementToClientsAsync(IEnumerable<string> targetAddresses, WaferMessage waferMessage, CancellationToken cancellationToken = default)
+        {
+            if (targetAddresses == null) return;
+
+            foreach (var address in targetAddresses)
+            {
+                if (string.IsNullOrWhiteSpace(address)) continue;
+
+                try
+                {
+                    using var channel = GrpcChannel.ForAddress(address);
+                    var client = new global::SECSGrpcService.EFEM.EFEMClient(channel.CreateCallInvoker());
+                    var call = client.StopMeasurementAsync(waferMessage, cancellationToken: cancellationToken);
+                    var reply = await call.ResponseAsync.ConfigureAwait(false);
+                    _logger.LogInformation("StopMeasurement -> {Address} returned {Code}: {Msg}", address, reply.MessageCode, reply.Message);
+                }
+                catch (RpcException rex)
+                {
+                    _logger.LogError(rex, "StopMeasurement RPC to {Address} failed", address);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send StopMeasurement to {Address}", address);
+                }
+
+                if (cancellationToken.IsCancellationRequested) break;
+            }
+        }
+
+        public async Task SendPauseMeasurementToClientsAsync(IEnumerable<string> targetAddresses, WaferMessage waferMessage, CancellationToken cancellationToken = default)
+        {
+            if (targetAddresses == null) return;
+
+            foreach (var address in targetAddresses)
+            {
+                if (string.IsNullOrWhiteSpace(address)) continue;
+
+                try
+                {
+                    using var channel = GrpcChannel.ForAddress(address);
+                    var client = new global::SECSGrpcService.EFEM.EFEMClient(channel.CreateCallInvoker());
+                    var call = client.PauseMeasurementAsync(waferMessage, cancellationToken: cancellationToken);
+                    var reply = await call.ResponseAsync.ConfigureAwait(false);
+                    _logger.LogInformation("PauseMeasurement -> {Address} returned {Code}: {Msg}", address, reply.MessageCode, reply.Message);
+                }
+                catch (RpcException rex)
+                {
+                    _logger.LogError(rex, "PauseMeasurement RPC to {Address} failed", address);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send PauseMeasurement to {Address}", address);
+                }
+
+                if (cancellationToken.IsCancellationRequested) break;
+            }
+        }
+
+        public async Task SendResumeMeasurementToClientsAsync(IEnumerable<string> targetAddresses, WaferMessage waferMessage, CancellationToken cancellationToken = default)
+        {
+            if (targetAddresses == null) return;
+
+            foreach (var address in targetAddresses)
+            {
+                if (string.IsNullOrWhiteSpace(address)) continue;
+
+                try
+                {
+                    using var channel = GrpcChannel.ForAddress(address);
+                    var client = new global::SECSGrpcService.EFEM.EFEMClient(channel.CreateCallInvoker());
+                    var call = client.ResumeMeasurementAsync(waferMessage, cancellationToken: cancellationToken);
+                    var reply = await call.ResponseAsync.ConfigureAwait(false);
+                    _logger.LogInformation("ResumeMeasurement -> {Address} returned {Code}: {Msg}", address, reply.MessageCode, reply.Message);
+                }
+                catch (RpcException rex)
+                {
+                    _logger.LogError(rex, "ResumeMeasurement RPC to {Address} failed", address);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send ResumeMeasurement to {Address}", address);
+                }
+
+                if (cancellationToken.IsCancellationRequested) break;
+            }
+        }
+
+        public async Task SendProcessProgramSelectToClientsAsync(IEnumerable<string> targetAddresses, RecipeMessage recipeMessage, CancellationToken cancellationToken = default)
+        {
+            if (targetAddresses == null) return;
+
+            foreach (var address in targetAddresses)
+            {
+                if (string.IsNullOrWhiteSpace(address)) continue;
+
+                try
+                {
+                    using var channel = GrpcChannel.ForAddress(address);
+                    var client = new global::SECSGrpcService.EFEM.EFEMClient(channel.CreateCallInvoker());
+                    var call = client.ProcessProgramSelectAsync(recipeMessage, cancellationToken: cancellationToken);
+                    var reply = await call.ResponseAsync.ConfigureAwait(false);
+                    _logger.LogInformation("ProcessProgramSelect -> {Address} returned {Code}: {Msg}", address, reply.MessageCode, reply.Message);
+                }
+                catch (RpcException rex)
+                {
+                    _logger.LogError(rex, "ProcessProgramSelect RPC to {Address} failed", address);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send ProcessProgramSelect to {Address}", address);
                 }
 
                 if (cancellationToken.IsCancellationRequested) break;
