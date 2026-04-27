@@ -72,6 +72,32 @@ message RecipeMessage {
   string lotId = 4;
 }
 
+// ===== 状态与上报相关 =====
+
+// 状态上报请求。
+message StatusMessage {
+  // 状态来源（设备/模块）。
+  string source = 1;
+  // 状态代码。
+  string statusCode = 2;
+  // 状态文本。
+  string statusText = 3;
+  // 上报时间（Unix 毫秒时间戳）。
+  int64 reportedAtUnixMs = 4;
+}
+
+// 状态上报回复。
+message StatusReply {
+  // 返回码：0=成功，其他=失败/异常。
+  int32 messageCode = 1;
+  // 返回信息。
+  string message = 2;
+  // 运行模式。全自动00，半自动01，分拣02。
+  string mode = 3;
+  // 运行状态。
+  string runStatus = 4;
+}
+
 // ===== 报警与上报相关 =====
 
 // 报警级别。
@@ -101,7 +127,7 @@ message AlarmReportRequest {
   uint32 alarmId = 2;
 
   // 报警代码。
-  string alarmCode = 3;
+  bytes alarmCode = 3;
 
   // 报警文本。
   string alarmText = 4;
@@ -154,8 +180,8 @@ message ActiveAlarm {
   // 报警编号。
   uint32 alarmId = 2;
 
-  // 报警代码。
-  string alarmCode = 3;
+  // 报警代码（8位字节编码）。
+  bytes alarmCode = 3;
 
   // 报警文本。
   string alarmText = 4;

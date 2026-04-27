@@ -1,3 +1,4 @@
+using Google.Protobuf;
 using System.Collections.Concurrent;
 
 namespace SECSGrpcService.Services;
@@ -31,7 +32,7 @@ internal static class AlarmStore
         {
             Source = source,
             AlarmId = request.AlarmId,
-            AlarmCode = request.AlarmCode ?? string.Empty,
+            AlarmCode = request.AlarmCode ?? ByteString.Empty,
             AlarmText = request.AlarmText ?? string.Empty,
             Severity = (int)request.Severity == 0 ? (AlarmSeverity)2 : request.Severity,
             OccurredAtUnixMs = request.OccurredAtUnixMs

@@ -11,7 +11,7 @@ builder.Configuration.AddJsonFile("secsgrpcsettings.json", optional: true, reloa
 
 // 从配置中获取端口和绑定地址
 var grpcSection = builder.Configuration.GetSection("Grpc");
-var grpcHost = grpcSection.GetValue<string>("Host", "0.0.0.0");
+var grpcHost = grpcSection.GetValue<string>("Host", "127.0.0.1");
 var grpcPort = grpcSection.GetValue<int>("Port", 7150);
 var grpcUseHttps = grpcSection.GetValue<bool>("UseHttps", true);
 
@@ -41,7 +41,7 @@ builder.Services.AddNacosAspNet(builder.Configuration, "nacos");
 builder.Services.AddSingleton<NacosGrpcResolver>();
 builder.Services.AddSingleton<SecsGemContext>();
 builder.Services.AddSingleton<SecsEfemGrpc>();
-builder.Services.AddSingleton<IStartMeasurementDispatcher, GrpcStartMeasurementDispatcher>();
+builder.Services.AddSingleton<IMeasurementDispatcher, GrpcMeasurementDispatcher>();
 
 // SECShandler 运行时状态与依赖（统一单例，供多个 handler 共享）
 builder.Services.AddSingleton<SecsHandlerRuntimeState>();

@@ -1,6 +1,8 @@
+using Google.Protobuf;
 using Grpc.Core;
 using SECSbuilder;
 using SECSdata;
+using SECShandler.Functions;
 
 namespace SECSGrpcService.Services;
 
@@ -79,7 +81,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
         };
     }
 
-    public override Task<AlarmReply> ReportAlarm(AlarmReportRequest request, ServerCallContext context)
+    public override async Task<AlarmReply> ReportAlarm(AlarmReportRequest request, ServerCallContext context)
     {
         AlarmStore.Upsert(request);
 
@@ -91,13 +93,51 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
             request.Severity,
             context.Peer);
 
-        Console.WriteLine($"进入了报警上报 ReportAlarm，source:{request.Source}, alarmId:{request.AlarmId}, alarmCode:{request.AlarmCode}");
+        Console.WriteLine($"Time：{request.OccurredAtUnixMs}进入了报警上报 ReportAlarm，source:{request.Source}, alarmId:{request.AlarmId}, alarmCode:{request.AlarmCode}");
 
-        return Task.FromResult(new AlarmReply
+        if (_secsGemContext.TryGet(out var secsGem) && secsGem is not null)
+        {
+            var alarmCodeText = ToAlarmCodeString(request.AlarmCode);
+            var s5f1Data = new S5F1_data
+            {
+                // ALCD 为报警代码位（1 byte）；优先取 alarmCode 第一个字节，缺失时默认 0x80（报警发生）
+                ALCD = request.AlarmCode is { Length: > 0 } ? request.AlarmCode.Span[0] : (byte)0x80,
+                ALID = request.AlarmId,
+                ALTX = string.IsNullOrWhiteSpace(request.AlarmText)
+                    ? (string.IsNullOrWhiteSpace(alarmCodeText) ? "报警已解除" : alarmCodeText)
+                    : $"{alarmCodeText}:{request.AlarmText}"
+            };
+
+            await EventReportSxFyFunctions.SendS5F1WithRetryAsync(secsGem, s5f1Data, _logger, context.CancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            _logger.LogWarning("SECS session not available. Skip S5F1 send after ReportAlarm.");
+        }
+
+        return new AlarmReply
         {
             MessageCode = 0,
             Message = "OK",
             RequestId = Guid.NewGuid().ToString("N")
-        });
+        };
+    }
+
+    private static string ToAlarmCodeString(ByteString alarmCode)
+    {
+        if (alarmCode is null || alarmCode.Length == 0)
+            return string.Empty;
+
+        try
+        {
+            var utf8 = alarmCode.ToStringUtf8();
+            if (!string.IsNullOrWhiteSpace(utf8))
+                return utf8;
+        }
+        catch
+        {
+        }
+
+        return Convert.ToHexString(alarmCode.ToByteArray());
     }
 }

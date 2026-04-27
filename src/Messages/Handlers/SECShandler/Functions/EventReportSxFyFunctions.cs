@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Secs4Net;
 using SECShandler.Interfaces;
 using SECSbuilder;
@@ -162,6 +163,41 @@ namespace SECShandler.Functions
             }
 
             await primary.TryReplyAsync(S2F38_builder.Build(eac));
+        }
+
+        public static async Task SendS5F1WithRetryAsync(SecsGem secsGem, S5F1_data data, ILogger logger, CancellationToken cancellationToken)
+        {
+            for (var attempt = 1; attempt <= 2; attempt++)
+            {
+                try
+                {
+                    var s5f1 = S5F1_builder.Build(data);
+                    var reply = await secsGem.SendAsync(s5f1, cancellationToken).ConfigureAwait(false);
+
+                    if (reply is not null && reply.S == 5 && reply.F == 2)
+                    {
+                        logger.LogInformation("S5F1 sent and S5F2 received. Attempt={Attempt}, ALID={ALID}", attempt, data.ALID);
+                        return;
+                    }
+
+                    logger.LogWarning("S5F1 sent but S5F2 not returned (actual S{S}F{F}). Attempt={Attempt}, ALID={ALID}", reply?.S, reply?.F, attempt, data.ALID);
+                }
+                catch (SecsException ex)
+                {
+                    logger.LogWarning(ex, "S5F1 send timeout or SECS error. Attempt={Attempt}, ALID={ALID}", attempt, data.ALID);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "S5F1 send failed. Attempt={Attempt}, ALID={ALID}", attempt, data.ALID);
+                }
+
+                if (attempt < 2)
+                {
+                    logger.LogWarning("未返回 S5F2，准备重发 S5F1。ALID={ALID}", data.ALID);
+                }
+            }
+
+            logger.LogError("S5F1 retry exhausted and still no S5F2. ALID={ALID}", data.ALID);
         }
     }
 }

@@ -2,16 +2,16 @@ using SECShandler.Interfaces;
 
 namespace SECSGrpcService.Services;
 
-public sealed class GrpcStartMeasurementDispatcher : IStartMeasurementDispatcher
+public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
 {
     private readonly IConfiguration _configuration;
     private readonly SecsEfemGrpc _secsEfemGrpc;
-    private readonly ILogger<GrpcStartMeasurementDispatcher> _logger;
+    private readonly ILogger<GrpcMeasurementDispatcher> _logger;
 
-    public GrpcStartMeasurementDispatcher(
+    public GrpcMeasurementDispatcher(
         IConfiguration configuration,
         SecsEfemGrpc secsEfemGrpc,
-        ILogger<GrpcStartMeasurementDispatcher> logger)
+        ILogger<GrpcMeasurementDispatcher> logger)
     {
         _configuration = configuration;
         _secsEfemGrpc = secsEfemGrpc;

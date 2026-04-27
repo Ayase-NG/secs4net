@@ -6,11 +6,11 @@ namespace SECShandler.Handlers
 {
     public sealed class RemoteCommandPrimaryMessageHandler : IPrimaryMessageHandler
     {
-        private readonly IStartMeasurementDispatcher _startMeasurementDispatcher;
+        private readonly IMeasurementDispatcher _measurementDispatcher;
 
-        public RemoteCommandPrimaryMessageHandler(IStartMeasurementDispatcher startMeasurementDispatcher)
+        public RemoteCommandPrimaryMessageHandler(IMeasurementDispatcher startMeasurementDispatcher)
         {
-            _startMeasurementDispatcher = startMeasurementDispatcher;
+            _measurementDispatcher = startMeasurementDispatcher;
         }
 
         public IEnumerable<(int S, int F)> SupportedMessages =>
@@ -23,7 +23,7 @@ namespace SECShandler.Handlers
         public async Task HandleAsync(SecsGem secsGem, PrimaryMessageWrapper primaryMessage, CancellationToken cancellationToken)
         {
             Console.WriteLine("进入S2F41分发处理");
-            await RemoteCommandSxFyFunctions.HandleS2F41Async(primaryMessage, _startMeasurementDispatcher, cancellationToken);
+            await RemoteCommandSxFyFunctions.HandleS2F41Async(primaryMessage, _measurementDispatcher, cancellationToken);
         }
     }
 }
