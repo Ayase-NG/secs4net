@@ -1,5 +1,9 @@
 {
   "_comment": "SECSGrpcService 配置文件。",
+  "Log": {
+    "_comment": "日志落盘目录；文件名格式为 YYYY-MM-DD_secs.log。",
+    "Directory": "D:/secs-logs"
+  },
   "Grpc": {
     "_comment": "gRPC 服务端监听配置（本项目对外提供 ReportGrpcService）。",
     "Host": "127.0.0.1",

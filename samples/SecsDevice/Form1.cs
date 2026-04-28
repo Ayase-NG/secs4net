@@ -342,11 +342,14 @@ internal class TestDevice : IDevice
 {
     public bool IsOnline { get; set; }
 
+    public DeviceRunStatus RunStatus { get; set; }
+
     public string ModelNumber { get; set; }
     public string SoftwareRevision { get; set; }
     public TestDevice()
     {
         IsOnline = true;
+        RunStatus = DeviceRunStatus.Idel;
         ModelNumber = "GWM-PW-20260407";
         SoftwareRevision = "V20260407";
     }

@@ -9,9 +9,14 @@ var builder = WebApplication.CreateBuilder(args);
 // 读取外部 json 配置文件 secsgrpcsettings.json（可选）用于指定绑定的 Host/Port/UseHttps
 builder.Configuration.AddJsonFile("secsgrpcsettings.json", optional: true, reloadOnChange: true);
 
+// 配置文件日志：目录来自配置，文件名格式 YYYY-MM-DD_secs.log
+var logDirectory = builder.Configuration.GetValue<string>("Log:Directory")
+    ?? Path.Combine(AppContext.BaseDirectory, "logs");
+builder.Logging.AddProvider(new DateFileLoggerProvider(logDirectory));
+
 // 从配置中获取端口和绑定地址
 var grpcSection = builder.Configuration.GetSection("Grpc");
-var grpcHost = grpcSection.GetValue<string>("Host", "127.0.0.1");
+var grpcHost = grpcSection.GetValue<string>("Host", "0.0.0.0");
 var grpcPort = grpcSection.GetValue<int>("Port", 7150);
 var grpcUseHttps = grpcSection.GetValue<bool>("UseHttps", true);
 

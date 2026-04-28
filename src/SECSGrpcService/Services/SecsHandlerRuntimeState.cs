@@ -11,6 +11,7 @@ public sealed class SecsHandlerRuntimeState : IDevice, IReportStorage, IEventLin
 
     // ===== IDevice =====
     public bool IsOnline { get; set; } = true;
+    public DeviceRunStatus RunStatus { get; set; } = DeviceRunStatus.Unknown;
     public string ModelNumber { get; set; } = "GWM-PW-20260407";
     public string SoftwareRevision { get; set; } = "V20260407";
 
