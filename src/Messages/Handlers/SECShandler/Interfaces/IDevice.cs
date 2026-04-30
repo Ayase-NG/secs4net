@@ -30,7 +30,7 @@ namespace SECShandler.Interfaces
     public interface IDevice
     {
         /// <summary>设备是否在线（可接受远程控制）</summary>
-        bool IsOnline { get; }
+        bool IsOnline { get; set; }
 
         /// <summary>设备当前运行状态</summary>
         DeviceRunStatus RunStatus { get; }

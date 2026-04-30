@@ -6,4 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Secs4Net\Secs4Net.csproj" />
+  </ItemGroup>
+
 </Project>

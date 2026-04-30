@@ -12,7 +12,7 @@ package GY.EFEM;
 // 开始检测请求。
 message StartMessage {
   // 请求发起方名称（模块名/设备名）。
-  string name = 1;
+  // string name = 1;
 
   // 批次 ID。
   string lotId = 2;
@@ -21,7 +21,7 @@ message StartMessage {
   string mode = 3;
 
   // 配方 ID（PPID）。
-  string PPID = 4;
+  // string PPID = 4;
 
   // 本次要处理的晶圆槽位列表。
   repeated uint32 slotsList = 5;

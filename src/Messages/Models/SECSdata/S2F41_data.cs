@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Secs4Net;
 
 namespace SECSdata
 {
@@ -16,9 +17,9 @@ namespace SECSdata
         /// <summary>
         /// 可变参数列表，每个参数包含名称(CPNAME)和值(CPVAL)。
         /// CPVAL 可能是多种数据类型 (string, int, double...)
-        /// 为简化示例，此处统一存储为 object。
+        /// 为简化示例，此处统一存储为 Secs4Net.Item。
         /// </summary>
-        public Dictionary<string, object> Parameters { get; set; } = new();
+        public Dictionary<string, Secs4Net.Item> Parameters { get; set; } = new();
 
         /// <summary>
         /// 是否有参数。

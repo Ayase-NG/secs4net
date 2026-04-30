@@ -15,9 +15,11 @@ namespace SECShandler.Functions
         /// </summary>
         public static async Task HandleS1F1ReplyAsync(SecsGem secsGem, IDevice device, PrimaryMessageWrapper primary)
         {
+            device.IsOnline = true; // 收到 S1F1 视为设备在线。
             var reply = new SecsMessage(1, 2, replyExpected: false)
             {
                 Name = "OnlineData",
+                // S1F2 标准要求携带设备型号与软件版本，且均为 ASCII 字符串。可发可不发
                 SecsItem = Item.L(
                     Item.A(device.ModelNumber),
                     Item.A(device.SoftwareRevision)
@@ -84,6 +86,11 @@ namespace SECShandler.Functions
             }
         }
 
+        /// <summary>
+        /// 校验 S1F13 载荷是否合法。
+        /// 标准 S1F13 为无载荷或空列表；
+        /// 对于非标准扩展载荷，若携带 MDLN/SOFTREV 则要求二者都为非空。
+        /// </summary>
         private static bool IsS1F13PayloadValid(SecsMessage msg, S1F13_data parsed)
         {
             var root = msg.SecsItem;
@@ -104,7 +111,6 @@ namespace SECShandler.Functions
                 return !string.IsNullOrWhiteSpace(parsed.MDLN) && !string.IsNullOrWhiteSpace(parsed.SOFTREV);
             }
 
-            // 只有 1 个元素的 payload 视为不完整。
             return false;
         }
     }

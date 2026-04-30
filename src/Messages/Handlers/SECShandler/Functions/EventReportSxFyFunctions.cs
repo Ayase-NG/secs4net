@@ -7,8 +7,17 @@ using SECSparser;
 
 namespace SECShandler.Functions
 {
+    /// <summary>
+    /// 事件上报相关的 SxFy 处理函数集合。
+    /// 包含 Host 下发的事件配置类消息处理（S2F33/S2F35/S2F37）
+    /// 以及设备侧主动报警上报（S5F1）的发送重试能力。
+    /// </summary>
     public static class EventReportSxFyFunctions
     {
+        /// <summary>
+        /// 处理 S2F33（Define Report）并回复 S2F34。
+        /// DRACK 约定：0=成功，1=内部错误，2=格式错误。
+        /// </summary>
         public static async Task HandleS2F33ReplyAsync(
             PrimaryMessageWrapper primary,
             IReportStorage reportStorage)
@@ -58,6 +67,10 @@ namespace SECShandler.Functions
             await primary.TryReplyAsync(S2F34_builder.Build(drack));
         }
 
+        /// <summary>
+        /// 处理 S2F35（Link Event Report）并回复 S2F36。
+        /// LRACK 常见约定：0=成功，1=内部错误，2=格式错误，4=CEID无效，5=RPTID未定义。
+        /// </summary>
         public static async Task HandleS2F35ReplyAsync(
             PrimaryMessageWrapper primary,
             IReportStorage reportStorage,
@@ -114,6 +127,10 @@ namespace SECShandler.Functions
             await primary.TryReplyAsync(S2F36_builder.Build(lrack));
         }
 
+        /// <summary>
+        /// 处理 S2F37（Enable/Disable Event Report）并回复 S2F38。
+        /// EAC 常见约定：0=成功，1=CEID无效，2=格式或内部错误。
+        /// </summary>
         public static async Task HandleS2F37ReplyAsync(
             PrimaryMessageWrapper primary,
             IEventLinkStorage eventLinkStorage,
@@ -165,6 +182,13 @@ namespace SECShandler.Functions
             await primary.TryReplyAsync(S2F38_builder.Build(eac));
         }
 
+        /// <summary>
+        /// 发送 S5F1（Alarm Report Send），当未收到期望的 S5F2 或发生超时/异常时重试一次。
+        /// </summary>
+        /// <param name="secsGem">SECS/GEM 通信对象。</param>
+        /// <param name="data">S5F1 业务数据。</param>
+        /// <param name="logger">日志对象。</param>
+        /// <param name="cancellationToken">取消令牌。</param>
         public static async Task SendS5F1WithRetryAsync(SecsGem secsGem, S5F1_data data, ILogger logger, CancellationToken cancellationToken)
         {
             for (var attempt = 1; attempt <= 2; attempt++)

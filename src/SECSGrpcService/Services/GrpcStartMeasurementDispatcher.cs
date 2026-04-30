@@ -1,3 +1,4 @@
+using SECSdata;
 using SECShandler.Interfaces;
 
 namespace SECSGrpcService.Services;
@@ -18,14 +19,14 @@ public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
         _logger = logger;
     }
 
-    public async Task DispatchStartMeasurementAsync(StartMeasurementDispatchRequest request, CancellationToken cancellationToken)
+    public async Task DispatchStartMeasurementAsync(S2F41_data data, CancellationToken cancellationToken)
     {
         var (targetServiceName, targetGroup, targetClusters, targetUseHttps) = GetTargetOptions();
 
         var fallbackName = _configuration.GetValue<string>("SecsListener:StartName") ?? "SECS-S2F41";
         var startMessage = new StartMessage
         {
-            Name = string.IsNullOrWhiteSpace(request.Name) ? fallbackName : request.Name,
+            Name = string.IsNullOrWhiteSpace(data.Name) ? fallbackName : data.Name,
             LotId = request.LotId ?? string.Empty,
             PPID = request.PPID ?? string.Empty
         };

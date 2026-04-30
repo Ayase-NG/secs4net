@@ -1,5 +1,9 @@
 using Secs4Net;
+using SECSbuilder;
+using SECSdata;
 using SECShandler.Interfaces;
+using SECSparser;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace SECShandler.Functions
 {
@@ -13,37 +17,36 @@ namespace SECShandler.Functions
         /// 处理 S2F41 Remote Command。
         /// 支持 RCMD：START、STOP、PAUSE、RESUME、PPSELECT。
         /// </summary>
+        /// <param name="primaryMessage">原始 S2F41 主消息包装对象。</param>
+        /// <param name="measurementDispatcher">业务分发器，用于转发到 gRPC/设备业务层。</param>
+        /// <param name="cancellationToken">取消令牌。</param>
         public static async Task HandleS2F41Async(
-            PrimaryMessageWrapper primaryMessage,
+            PrimaryMessageWrapper primary,
             IMeasurementDispatcher measurementDispatcher,
             CancellationToken cancellationToken)
         {
-            var msg = primaryMessage.PrimaryMessage;
-            var root = msg.SecsItem;
-            if (root is null || root.Format != SecsFormat.List || root.Count < 2)
-            {
-                await TryReplyS2F42Async(primaryMessage, hcack: 2, cancellationToken);
-                return;
-            }
-
-            var rcmdItem = root[0];
-            if (rcmdItem is null || rcmdItem.Format != SecsFormat.ASCII)
-            {
-                await TryReplyS2F42Async(primaryMessage, hcack: 2, cancellationToken);
-                return;
-            }
-
-            var rcmd = (rcmdItem.GetString() ?? string.Empty).Trim();
-            var paramsContainer = root[1];
-
+            S2F41_data data;
+            byte drack = 0;
+            var primaryMsg = primary.PrimaryMessage;
             try
             {
-                switch (rcmd.ToUpperInvariant())
+                data = S2F41_parser.Parse(primaryMsg);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"S2F41 parse error: {ex.Message}");
+                drack = 2;
+                await primary.TryReplyAsync(S2F42_builder.Build(drack));
+                return;
+            }
+         
+            try
+            {
+                switch (data.RCMD?.ToUpperInvariant())
                 {
                     case "START":
                         {
-                            var request = BuildStartMeasurementRequest(paramsContainer);
-                            await measurementDispatcher.DispatchStartMeasurementAsync(request, cancellationToken);
+                            await measurementDispatcher.DispatchStartMeasurementAsync(data, cancellationToken);
                             break;
                         }
                     case "STOP":
@@ -88,6 +91,10 @@ namespace SECShandler.Functions
         /// 回复 S2F42（Remote Command Acknowledge）。
         /// HCACK 约定：0=成功，1=命令不支持/参数问题，2=执行失败。
         /// </summary>
+        /// <param name="primaryMessage">原始主消息包装对象。</param>
+        /// <param name="hcack">命令应答码。</param>
+        /// <param name="cancellationToken">取消令牌。</param>
+        /// <param name="errorParam">可选参数名错误标识（如 RCMD）。</param>
         private static async Task TryReplyS2F42Async(PrimaryMessageWrapper primaryMessage, byte hcack, CancellationToken cancellationToken, string? errorParam = null)
         {
             if (!primaryMessage.PrimaryMessage.ReplyExpected)
