@@ -341,6 +341,8 @@ public partial class Form1 : Form
 internal class TestDevice : IDevice
 {
     public bool IsOnline { get; set; }
+    public string Mode { get; set; }
+    public List<uint> SlotsList { get; set; }
 
     public DeviceRunStatus RunStatus { get; set; }
 
@@ -349,6 +351,8 @@ internal class TestDevice : IDevice
     public TestDevice()
     {
         IsOnline = true;
+        Mode = "01";
+        SlotsList = new List<uint>();
         RunStatus = DeviceRunStatus.Idel;
         ModelNumber = "GWM-PW-20260407";
         SoftwareRevision = "V20260407";

@@ -126,4 +126,9 @@ public abstract partial class Item : IEquatable<Item>, IDisposable
         [DebuggerBrowsable(DebuggerBrowsableState.RootHidden)]
         public byte[] Bytes => item.GetEncodedBytes();
     }
+
+    public override int GetHashCode()
+    {
+        throw new NotImplementedException();
+    }
 }

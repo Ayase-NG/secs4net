@@ -36,7 +36,7 @@ namespace SECSparser
             data.CEED = ReadByteCode(first, "CEED");
 
             // 向后兼容：旧逻辑使用 DataId 字段
-            data.DataId = data.CEED;
+            //data.DataId = data.CEED;
 
             // 第二个元素为 CEIDLIST
             var ceidListContainer = root[1];

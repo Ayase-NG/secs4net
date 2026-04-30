@@ -20,6 +20,7 @@ namespace SECShandler.Handlers
             _eventEnableStorage = eventEnableStorage;
         }
 
+        // 本处理器负责处理 S2F33（Event Report Request）、S2F35（Event Report Request With Report Id）和 S2F37（Event Report Request With Link Event Id），注册进SupportedMessages。
         public IEnumerable<(int S, int F)> SupportedMessages =>
         [
             (2, 33),

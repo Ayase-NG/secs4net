@@ -12,7 +12,7 @@ service EFEM {
   // 开始检测。
   rpc StartMeasurement (StartMessage) returns (ControlReply);
 
-  // 停止检测。
+  // 停止检测。需确认是否为指向性停止，还是立即停止
   rpc StopMeasurement (WaferMessage) returns (ControlReply);
 
   // 暂停检测。

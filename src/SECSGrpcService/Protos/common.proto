@@ -20,10 +20,21 @@ message StartMessage {
   // 选择测试模式，全自动00，半自动01，分拣02。
   string mode = 3;
 
-  // 配方 ID（PPID）。
+  // 配方 ID（PPID）。开始中不携带PPID，由PP-SELECT下发
   // string PPID = 4;
 
   // 本次要处理的晶圆槽位列表。
+  // repeated uint32 slotsList = 5;
+}
+
+message CarrierMessage {
+  // Loadport位置。
+  string portId = 1;
+  // 批次 ID，暂时可不使用，即赋值可为"null"。
+  string lotId = 2;
+  // 晶圆盒标签 ID。
+  string RFID = 3;
+  // mapping结果。
   repeated uint32 slotsList = 5;
 }
 
@@ -57,19 +68,22 @@ message ControlReply {
   string Message = 2;
 }
 
-// 配方选择请求。
+// 配方选择请求。下位机优先判断mode
 message RecipeMessage {
   // 配方名称。
-  string PPName = 1;
+  string PPID = 1;
 
-  // 配方 ID。
-  string PPID = 2;
+  // Loadport位置。
+  string portId = 2;
 
-  // 晶圆 ID（可选，按业务场景传）。
-  string waferId = 3;
+  // 模式选择。00=全自动，01=半自动，02=分拣。
+  string mode = 3;
 
   // 批次 ID（可选，按业务场景传）。
   string lotId = 4;
+
+  // 本次要处理的晶圆槽位列表。
+  repeated uint32 slotsList = 5;
 }
 
 // ===== 状态与上报相关 =====

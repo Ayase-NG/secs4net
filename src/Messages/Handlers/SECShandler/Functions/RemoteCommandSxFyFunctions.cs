@@ -3,7 +3,6 @@ using SECSbuilder;
 using SECSdata;
 using SECShandler.Interfaces;
 using SECSparser;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace SECShandler.Functions
 {
@@ -17,16 +16,12 @@ namespace SECShandler.Functions
         /// 处理 S2F41 Remote Command。
         /// 支持 RCMD：START、STOP、PAUSE、RESUME、PPSELECT。
         /// </summary>
-        /// <param name="primaryMessage">原始 S2F41 主消息包装对象。</param>
-        /// <param name="measurementDispatcher">业务分发器，用于转发到 gRPC/设备业务层。</param>
-        /// <param name="cancellationToken">取消令牌。</param>
         public static async Task HandleS2F41Async(
             PrimaryMessageWrapper primary,
             IMeasurementDispatcher measurementDispatcher,
             CancellationToken cancellationToken)
         {
             S2F41_data data;
-            byte drack = 0;
             var primaryMsg = primary.PrimaryMessage;
             try
             {
@@ -35,54 +30,39 @@ namespace SECShandler.Functions
             catch (Exception ex)
             {
                 Console.WriteLine($"S2F41 parse error: {ex.Message}");
-                drack = 2;
-                await primary.TryReplyAsync(S2F42_builder.Build(drack));
+                await primary.TryReplyAsync(S2F42_builder.Build(2));
                 return;
             }
-         
+
             try
             {
                 switch (data.RCMD?.ToUpperInvariant())
                 {
                     case "START":
-                        {
-                            await measurementDispatcher.DispatchStartMeasurementAsync(data, cancellationToken);
-                            break;
-                        }
+                        await measurementDispatcher.DispatchStartMeasurementAsync(data, cancellationToken);
+                        break;
                     case "STOP":
-                        {
-                            var request = BuildWaferDispatchRequest(paramsContainer);
-                            await measurementDispatcher.DispatchStopMeasurementAsync(request, cancellationToken);
-                            break;
-                        }
+                        await measurementDispatcher.DispatchStopMeasurementAsync(data, cancellationToken);
+                        break;
                     case "PAUSE":
-                        {
-                            var request = BuildWaferDispatchRequest(paramsContainer);
-                            await measurementDispatcher.DispatchPauseMeasurementAsync(request, cancellationToken);
-                            break;
-                        }
+                        await measurementDispatcher.DispatchPauseMeasurementAsync(data, cancellationToken);
+                        break;
                     case "RESUME":
-                        {
-                            var request = BuildWaferDispatchRequest(paramsContainer);
-                            await measurementDispatcher.DispatchResumeMeasurementAsync(request, cancellationToken);
-                            break;
-                        }
+                        await measurementDispatcher.DispatchResumeMeasurementAsync(data, cancellationToken);
+                        break;
                     case "PPSELECT":
-                        {
-                            var request = BuildRecipeDispatchRequest(paramsContainer);
-                            await measurementDispatcher.DispatchProcessProgramSelectAsync(request, cancellationToken);
-                            break;
-                        }
+                        await measurementDispatcher.DispatchProcessProgramSelectAsync(data, cancellationToken);
+                        break;
                     default:
-                        await TryReplyS2F42Async(primaryMessage, hcack: 1, cancellationToken, errorParam: "RCMD");
+                        await TryReplyS2F42Async(primary, hcack: 1, cancellationToken, errorParam: "RCMD");
                         return;
                 }
 
-                await TryReplyS2F42Async(primaryMessage, hcack: 0, cancellationToken);
+                await TryReplyS2F42Async(primary, hcack: 0, cancellationToken);
             }
             catch
             {
-                await TryReplyS2F42Async(primaryMessage, hcack: 2, cancellationToken);
+                await TryReplyS2F42Async(primary, hcack: 2, cancellationToken);
                 throw;
             }
         }
@@ -91,10 +71,6 @@ namespace SECShandler.Functions
         /// 回复 S2F42（Remote Command Acknowledge）。
         /// HCACK 约定：0=成功，1=命令不支持/参数问题，2=执行失败。
         /// </summary>
-        /// <param name="primaryMessage">原始主消息包装对象。</param>
-        /// <param name="hcack">命令应答码。</param>
-        /// <param name="cancellationToken">取消令牌。</param>
-        /// <param name="errorParam">可选参数名错误标识（如 RCMD）。</param>
         private static async Task TryReplyS2F42Async(PrimaryMessageWrapper primaryMessage, byte hcack, CancellationToken cancellationToken, string? errorParam = null)
         {
             if (!primaryMessage.PrimaryMessage.ReplyExpected)
@@ -111,272 +87,6 @@ namespace SECShandler.Functions
             };
 
             await primaryMessage.TryReplyAsync(s2f42, cancellationToken);
-        }
-
-        /// <summary>
-        /// 从 S2F41 参数列表构建 StartMeasurement 分发请求。
-        /// 支持参数名：NAME、LOTID、PPID、SLOTSLIST/SLOTS。
-        /// </summary>
-        private static StartMeasurementDispatchRequest BuildStartMeasurementRequest(Item paramsContainer)
-        {
-            var request = new StartMeasurementDispatchRequest();
-
-            if (paramsContainer.Format != SecsFormat.List)
-                return request;
-
-            foreach (var paramItem in paramsContainer.Items)
-            {
-                if (paramItem.Format != SecsFormat.List || paramItem.Count < 2)
-                    continue;
-
-                var nameItem = paramItem[0];
-                var valueItem = paramItem[1];
-                if (nameItem is null || nameItem.Format != SecsFormat.ASCII)
-                    continue;
-
-                var paramName = (nameItem.GetString() ?? string.Empty).Trim();
-                if (string.IsNullOrEmpty(paramName))
-                    continue;
-
-                if (string.Equals(paramName, "NAME", StringComparison.OrdinalIgnoreCase))
-                {
-                    request.Name = TryReadAsString(valueItem) ?? request.Name;
-                    continue;
-                }
-
-                if (string.Equals(paramName, "LOTID", StringComparison.OrdinalIgnoreCase))
-                {
-                    request.LotId = TryReadAsString(valueItem) ?? request.LotId;
-                    continue;
-                }
-
-                if (string.Equals(paramName, "PPID", StringComparison.OrdinalIgnoreCase))
-                {
-                    request.PPID = TryReadAsString(valueItem) ?? request.PPID;
-                    continue;
-                }
-
-                if (string.Equals(paramName, "SLOTSLIST", StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(paramName, "SLOTS", StringComparison.OrdinalIgnoreCase))
-                {
-                    request.Slots.AddRange(ReadSlots(valueItem));
-                }
-            }
-
-            return request;
-        }
-
-        /// <summary>
-        /// 从 S2F41 参数列表构建 Wafer 相关分发请求（STOP/PAUSE/RESUME）。
-        /// 支持参数名：SLOTID、WAFERID、LOTID、STATUS、PPID、RESULT。
-        /// </summary>
-        private static WaferDispatchRequest BuildWaferDispatchRequest(Item paramsContainer)
-        {
-            var request = new WaferDispatchRequest();
-            if (paramsContainer.Format != SecsFormat.List)
-                return request;
-
-            foreach (var paramItem in paramsContainer.Items)
-            {
-                if (paramItem.Format != SecsFormat.List || paramItem.Count < 2)
-                    continue;
-
-                var nameItem = paramItem[0];
-                var valueItem = paramItem[1];
-                if (nameItem is null || nameItem.Format != SecsFormat.ASCII)
-                    continue;
-
-                var paramName = (nameItem.GetString() ?? string.Empty).Trim();
-                if (string.IsNullOrEmpty(paramName))
-                    continue;
-
-                var strValue = TryReadAsString(valueItem) ?? string.Empty;
-                if (string.Equals(paramName, "SLOTID", StringComparison.OrdinalIgnoreCase))
-                {
-                    request.SlotId = strValue;
-                    continue;
-                }
-                if (string.Equals(paramName, "WAFERID", StringComparison.OrdinalIgnoreCase))
-                {
-                    request.WaferId = strValue;
-                    continue;
-                }
-                if (string.Equals(paramName, "LOTID", StringComparison.OrdinalIgnoreCase))
-                {
-                    request.LotId = strValue;
-                    continue;
-                }
-                if (string.Equals(paramName, "STATUS", StringComparison.OrdinalIgnoreCase))
-                {
-                    request.Status = strValue;
-                    continue;
-                }
-                if (string.Equals(paramName, "PPID", StringComparison.OrdinalIgnoreCase))
-                {
-                    request.PPID = strValue;
-                    continue;
-                }
-                if (string.Equals(paramName, "RESULT", StringComparison.OrdinalIgnoreCase))
-                {
-                    request.Result = strValue;
-                    continue;
-                }
-            }
-
-            return request;
-        }
-
-        /// <summary>
-        /// 从 S2F41 参数列表构建 Recipe 分发请求（PPSELECT）。
-        /// 支持参数名：PPNAME、PPID、WAFERID、LOTID。
-        /// </summary>
-        private static RecipeDispatchRequest BuildRecipeDispatchRequest(Item paramsContainer)
-        {
-            var request = new RecipeDispatchRequest();
-            if (paramsContainer.Format != SecsFormat.List)
-                return request;
-
-            foreach (var paramItem in paramsContainer.Items)
-            {
-                if (paramItem.Format != SecsFormat.List || paramItem.Count < 2)
-                    continue;
-
-                var nameItem = paramItem[0];
-                var valueItem = paramItem[1];
-                if (nameItem is null || nameItem.Format != SecsFormat.ASCII)
-                    continue;
-
-                var paramName = (nameItem.GetString() ?? string.Empty).Trim();
-                if (string.IsNullOrEmpty(paramName))
-                    continue;
-
-                var strValue = TryReadAsString(valueItem) ?? string.Empty;
-                if (string.Equals(paramName, "PPNAME", StringComparison.OrdinalIgnoreCase))
-                {
-                    request.PPName = strValue;
-                    continue;
-                }
-                if (string.Equals(paramName, "PPID", StringComparison.OrdinalIgnoreCase))
-                {
-                    request.PPID = strValue;
-                    continue;
-                }
-                if (string.Equals(paramName, "WAFERID", StringComparison.OrdinalIgnoreCase))
-                {
-                    request.WaferId = strValue;
-                    continue;
-                }
-                if (string.Equals(paramName, "LOTID", StringComparison.OrdinalIgnoreCase))
-                {
-                    request.LotId = strValue;
-                    continue;
-                }
-            }
-
-            return request;
-        }
-
-        /// <summary>
-        /// 尝试将 Item 转换为字符串（支持 ASCII 与常见整型）。
-        /// </summary>
-        private static string? TryReadAsString(Item item)
-        {
-            if (item is null) return null;
-
-            if (item.Format == SecsFormat.ASCII)
-                return item.GetString();
-
-            return item.Format switch
-            {
-                SecsFormat.U1 => item.FirstValueOrDefault<byte>(0).ToString(),
-                SecsFormat.U2 => item.FirstValueOrDefault<ushort>(0).ToString(),
-                SecsFormat.U4 => item.FirstValueOrDefault<uint>(0).ToString(),
-                SecsFormat.I1 => item.FirstValueOrDefault<sbyte>(0).ToString(),
-                SecsFormat.I2 => item.FirstValueOrDefault<short>(0).ToString(),
-                SecsFormat.I4 => item.FirstValueOrDefault<int>(0).ToString(),
-                _ => null
-            };
-        }
-
-        /// <summary>
-        /// 解析槽位列表，支持：
-        /// 1) List 数字集合；
-        /// 2) ASCII 逗号分隔字符串；
-        /// 3) 单个数值。
-        /// </summary>
-        private static IEnumerable<uint> ReadSlots(Item item)
-        {
-            if (item is null)
-                yield break;
-
-            if (item.Format == SecsFormat.List)
-            {
-                foreach (var child in item.Items)
-                {
-                    if (TryReadUInt(child, out var slot))
-                        yield return slot;
-                }
-                yield break;
-            }
-
-            if (item.Format == SecsFormat.ASCII)
-            {
-                var raw = item.GetString() ?? string.Empty;
-                foreach (var token in raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                {
-                    if (uint.TryParse(token, out var slot))
-                        yield return slot;
-                }
-                yield break;
-            }
-
-            if (TryReadUInt(item, out var singleSlot))
-                yield return singleSlot;
-        }
-
-        /// <summary>
-        /// 将常见整型 Item 转换为 uint。
-        /// 对有符号负数返回 false。
-        /// </summary>
-        private static bool TryReadUInt(Item item, out uint value)
-        {
-            value = 0;
-
-            switch (item.Format)
-            {
-                case SecsFormat.U1:
-                    value = item.FirstValueOrDefault<byte>(0);
-                    return true;
-                case SecsFormat.U2:
-                    value = item.FirstValueOrDefault<ushort>(0);
-                    return true;
-                case SecsFormat.U4:
-                    value = item.FirstValueOrDefault<uint>(0);
-                    return true;
-                case SecsFormat.I1:
-                    {
-                        var v = item.FirstValueOrDefault<sbyte>(0);
-                        if (v < 0) return false;
-                        value = (uint)v;
-                        return true;
-                    }
-                case SecsFormat.I2:
-                    {
-                        var v = item.FirstValueOrDefault<short>(0);
-                        if (v < 0) return false;
-                        value = (uint)v;
-                        return true;
-                    }
-                case SecsFormat.I4:
-                    {
-                        var v = item.FirstValueOrDefault<int>(0);
-                        if (v < 0) return false;
-                        value = (uint)v;
-                        return true;
-                    }
-                default:
-                    return false;
-            }
         }
     }
 }

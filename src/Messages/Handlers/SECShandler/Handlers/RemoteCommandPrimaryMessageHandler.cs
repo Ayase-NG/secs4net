@@ -13,6 +13,7 @@ namespace SECShandler.Handlers
             _measurementDispatcher = startMeasurementDispatcher;
         }
 
+        // 本处理器负责处理 S2F41（Remote Command Request），注册进SupportedMessages。
         public IEnumerable<(int S, int F)> SupportedMessages =>
         [
             (2, 41)

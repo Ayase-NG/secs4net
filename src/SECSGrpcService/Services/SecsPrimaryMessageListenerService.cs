@@ -142,6 +142,7 @@ public sealed class SecsPrimaryMessageListenerService : BackgroundService
         await handler.HandleAsync(secsGem, primaryMessage, cancellationToken);
     }
 
+    // handlers全进程统一，在service中build时就会将自身的SF注册进SupportedMessages中。
     private static IReadOnlyDictionary<(int S, int F), IPrimaryMessageHandler> BuildRoutes(IEnumerable<IPrimaryMessageHandler> handlers)
     {
         var routes = new Dictionary<(int S, int F), IPrimaryMessageHandler>();

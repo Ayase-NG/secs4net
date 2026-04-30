@@ -58,6 +58,8 @@ builder.Services.AddSingleton<IEventEnableStorage>(sp => sp.GetRequiredService<S
 builder.Services.AddSingleton<IPrimaryMessageHandler, CommunicationPrimaryMessageHandler>();
 builder.Services.AddSingleton<IPrimaryMessageHandler, EventReportPrimaryMessageHandler>();
 builder.Services.AddSingleton<IPrimaryMessageHandler, RemoteCommandPrimaryMessageHandler>();
+
+// 注册 SECS PrimaryMessage 持续监听服务（后台服务），与 gRPC 服务并行运行。主要
 builder.Services.AddHostedService<SecsPrimaryMessageListenerService>();
 
 var app = builder.Build();

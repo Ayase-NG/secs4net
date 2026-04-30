@@ -10,13 +10,16 @@ import "common.proto";
 
 // 结果上报服务。
 service ReportGrpcService {
-  // 外部上报检测结果。
-  rpc ResultReport (.GY.EFEM.WaferMessage) returns (.GY.EFEM.ReportReply);
+	// 设备获取晶圆盒后，Mapping结束后上报RFID和Mapping结果。
+	rpc ReportRFID (.GY.EFEM.CarrierMessage) returns (.GY.EFEM.ReportReply);
+	
+	// 外部上报检测结果。
+	rpc ResultReport (.GY.EFEM.WaferMessage) returns (.GY.EFEM.ReportReply);
 
-  // 外部上报状态
-  rpc StatusReport (.GY.EFEM.StatusMessage) returns (.GY.EFEM.StatusReply);
+	// 外部上报状态
+	rpc StatusReport (.GY.EFEM.StatusMessage) returns (.GY.EFEM.StatusReply);
 
-  // 外部上报报警（报警发生）。
-  rpc ReportAlarm (.GY.EFEM.AlarmReportRequest) returns (.GY.EFEM.AlarmReply);
+	// 外部上报报警（报警发生）。
+	rpc ReportAlarm (.GY.EFEM.AlarmReportRequest) returns (.GY.EFEM.AlarmReply);
 }
 

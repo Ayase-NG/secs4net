@@ -13,6 +13,7 @@ namespace SECShandler.Handlers
             _device = device;
         }
 
+        // 本处理器负责处理 S1F1（Are You There?）和 S1F13（Request On-Line Data），注册进SupportedMessages。
         public IEnumerable<(int S, int F)> SupportedMessages =>
         [
             (1, 1),

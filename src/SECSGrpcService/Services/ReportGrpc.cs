@@ -20,6 +20,12 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
         _secsGemContext = secsGemContext;
     }
 
+    /// <summary>
+    /// 上报晶圆测试结果
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="context"></param>
+    /// <returns></returns>
     public override async Task<ReportReply> ResultReport(WaferMessage request, ServerCallContext context)
     {
         _logger.LogInformation(
@@ -39,19 +45,18 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
             var data = new S6F11_data
             {
                 DATAID = 0,
-                CEID = 1001,
+                CEID = 1009,
                 Reports = new List<S6F11_report_data>
                 {
                     new S6F11_report_data
                     {
-                        RPTID = 1000,
+                        RPTID = 1009,
                         Values = new List<object?>
                         {
                             request.WaferId,
                             request.LotId,
                             request.PPID,
                             request.SlotId,
-                            // 返回设备状态，Idel/Running/Error 等
                             request.Status,
                             request.Result
                         }

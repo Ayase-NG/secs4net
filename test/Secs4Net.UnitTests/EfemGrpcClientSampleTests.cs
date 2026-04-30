@@ -32,16 +32,16 @@ public class EfemGrpcClientSampleTests
 
         var startReply = await client.StartMeasurementAsync(new global::SECSGrpcService.StartMessage
         {
-            Name = "unit-test",
+            //Name = "unit-test",
             LotId = "LOT-UT-001",
-            PPID = "PP-UT-01",
-            SlotsList = { 1, 2, 3 }
+            //PPID = "PP-UT-01",
+            //SlotsList = { 1, 2, 3 }
         }, cancellationToken: cts.Token);
 
         var recipeReply = await client.ProcessProgramSelectAsync(new global::SECSGrpcService.RecipeMessage
         {
-            PPName = "RECIPE-UT",
-            PPID = "PP-UT-01"
+            PPID = "RECIPE-UT",
+            //PPID = "PP-UT-01"
         }, cancellationToken: cts.Token);
 
         var wafer = new global::SECSGrpcService.WaferMessage { SlotId = "1" };

@@ -160,7 +160,7 @@ namespace SECShandler.Functions
                 }
                 else
                 {
-                    foreach (var ceid in data.CeidList)
+                    foreach (var ceid in data.CEIDList)
                     {
                         if (!eventLinkStorage.IsCeidValid(ceid))
                         {

@@ -1,3 +1,5 @@
+using SECSdata;
+
 namespace SECShandler.Interfaces
 {
     public sealed class StartMeasurementDispatchRequest
@@ -28,10 +30,10 @@ namespace SECShandler.Interfaces
 
     public interface IMeasurementDispatcher
     {
-        Task DispatchStartMeasurementAsync(StartMeasurementDispatchRequest request, CancellationToken cancellationToken);
-        Task DispatchStopMeasurementAsync(WaferDispatchRequest request, CancellationToken cancellationToken);
-        Task DispatchPauseMeasurementAsync(WaferDispatchRequest request, CancellationToken cancellationToken);
-        Task DispatchResumeMeasurementAsync(WaferDispatchRequest request, CancellationToken cancellationToken);
-        Task DispatchProcessProgramSelectAsync(RecipeDispatchRequest request, CancellationToken cancellationToken);
+        Task DispatchStartMeasurementAsync(S2F41_data data, CancellationToken cancellationToken);
+        Task DispatchStopMeasurementAsync(S2F41_data data, CancellationToken cancellationToken);
+        Task DispatchPauseMeasurementAsync(S2F41_data data, CancellationToken cancellationToken);
+        Task DispatchResumeMeasurementAsync(S2F41_data data, CancellationToken cancellationToken);
+        Task DispatchProcessProgramSelectAsync(S2F41_data data, CancellationToken cancellationToken);
     }
 }
