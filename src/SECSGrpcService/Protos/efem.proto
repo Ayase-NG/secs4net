@@ -6,7 +6,7 @@ package GY.SECS;
 import "common.proto";
 
 // 被动接收接口定义（本项目作为 gRPC Server）。
-// 说明：本文件存放“外部系统调用本项目”的所有 RPC。
+// 说明：本文件的所有 RPC 均为被动接收，外部系统调用本项目的 server。
 
 // 结果上报服务。
 service ReportGrpcService {

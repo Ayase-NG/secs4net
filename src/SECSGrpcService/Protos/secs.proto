@@ -7,12 +7,12 @@ package GY.EFEM;
 import "common.proto";
 
 // 主动外发接口定义（本项目作为 gRPC Client）。
-// 说明：本文件只定义本项目“向外部服务发起调用”的 RPC。
+// 说明：本文件的RPC均为主动外发，调用EFEM的server。
 service EFEM {
   // 开始检测。
   rpc StartMeasurement (StartMessage) returns (ControlReply);
 
-  // 停止检测。需确认是否为指向性停止，还是立即停止
+  // 停止检测。需确认是否为指向性停止，还是立即停止。一般不考虑使用
   rpc StopMeasurement (WaferMessage) returns (ControlReply);
 
   // 暂停检测。
@@ -27,9 +27,9 @@ service EFEM {
 
 // 报警相关主动外发服务。
 service AlarmGrpcService {
-  // 主动清除报警（报警恢复）。
+  // 清除报警（报警恢复）。
   rpc ClearAlarm (AlarmClearRequest) returns (AlarmReply);
 
-  // 主动查询当前激活报警。
+  // 查询当前激活报警。
   rpc QueryActiveAlarms (QueryActiveAlarmsRequest) returns (QueryActiveAlarmsReply);
 }
