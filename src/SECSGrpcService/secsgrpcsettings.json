@@ -4,6 +4,10 @@
     "_comment": "日志落盘目录；文件名格式为 YYYY-MM-DD_secs.log。",
     "Directory": "D:/secs-logs"
   },
+  "MySql": {
+    "_comment": "报警历史记录数据库（MySQL）连接字符串。",
+    "ConnectionString": "server=127.0.0.1;port=3306;database=secs_alarm;user=root;password=123456;"
+  },
   "Grpc": {
     "_comment": "gRPC 服务端监听配置（本项目对外提供 ReportGrpcService）。",
     "Host": "127.0.0.1",

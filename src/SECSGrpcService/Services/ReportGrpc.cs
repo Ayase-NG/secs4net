@@ -13,19 +13,18 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
 {
     private readonly ILogger<ReportGrpc> _logger;
     private readonly SecsGemContext _secsGemContext;
+    private readonly AlarmStore _alarmStore;
 
-    public ReportGrpc(ILogger<ReportGrpc> logger, SecsGemContext secsGemContext)
+    public ReportGrpc(ILogger<ReportGrpc> logger, SecsGemContext secsGemContext, AlarmStore alarmStore)
     {
         _logger = logger;
         _secsGemContext = secsGemContext;
+        _alarmStore = alarmStore;
     }
 
     /// <summary>
     /// 上报晶圆测试结果
     /// </summary>
-    /// <param name="request"></param>
-    /// <param name="context"></param>
-    /// <returns></returns>
     public override async Task<ReportReply> ResultReport(WaferMessage request, ServerCallContext context)
     {
         _logger.LogInformation(
@@ -89,7 +88,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
 
     public override async Task<AlarmReply> ReportAlarm(AlarmReportRequest request, ServerCallContext context)
     {
-        AlarmStore.Upsert(request);
+        _alarmStore.Upsert(request);
 
         _logger.LogInformation(
             "ReportAlarm received. Source={Source}, AlarmId={AlarmId}, AlarmCode={AlarmCode}, Severity={Severity}, Peer={Peer}",
@@ -106,7 +105,6 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
             var alarmCodeText = ToAlarmCodeString(request.AlarmCode);
             var s5f1Data = new S5F1_data
             {
-                // ALCD 为报警代码位（1 byte）；优先取 alarmCode 第一个字节，缺失时默认 0x80（报警发生）
                 ALCD = request.AlarmCode is { Length: > 0 } ? request.AlarmCode.Span[0] : (byte)0x80,
                 ALID = request.AlarmId,
                 ALTX = string.IsNullOrWhiteSpace(request.AlarmText)

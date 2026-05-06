@@ -32,6 +32,9 @@ namespace SECShandler.Interfaces
         /// <summary>设备是否在线（可接受远程控制）</summary>
         bool IsOnline { get; set; }
 
+        /// <summary>设备状态:unknown,initializing,idle,running</summary>
+        string Status { get; set; }
+
         /// <summary>设备运行模式</summary>
         string Mode { get; set; }
 

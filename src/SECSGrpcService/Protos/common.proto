@@ -73,7 +73,7 @@ message RecipeMessage {
   // 配方名称。
   string PPID = 1;
 
-  // Loadport位置。
+  // Loadport位置。有四个loadport例如：1011，仅134号port需要测试。
   string portId = 2;
 
   // 模式选择。00=全自动，01=半自动，02=分拣。
@@ -96,17 +96,17 @@ message StatusMessage {
   string statusCode = 2;
   // 状态文本。
   string statusText = 3;
-  // 上报时间（Unix 毫秒时间戳）。
+  // 请求时间
   int64 reportedAtUnixMs = 4;
 }
 
-// 状态上报回复。
+// 状态回复。
 message StatusReply {
   // 返回码：0=成功，其他=失败/异常。
   int32 messageCode = 1;
   // 返回信息。
   string message = 2;
-  // 运行模式。全自动00，半自动01，分拣02。
+  // 运行模式。未设置00，全自动01，半自动02，分拣03。
   string mode = 3;
   // 运行状态。
   string runStatus = 4;
@@ -226,4 +226,8 @@ message ReportReply {
 
   // 返回信息。
   string message = 2;
+}
+
+// 无参请求体
+message NoParams{
 }

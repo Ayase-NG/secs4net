@@ -348,9 +348,12 @@ internal class TestDevice : IDevice
 
     public string ModelNumber { get; set; }
     public string SoftwareRevision { get; set; }
+    public string Status { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+
     public TestDevice()
     {
         IsOnline = true;
+        Status = "Offline";
         Mode = "01";
         SlotsList = new List<uint>();
         RunStatus = DeviceRunStatus.Idel;

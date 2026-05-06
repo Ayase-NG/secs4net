@@ -18,18 +18,17 @@ namespace SECSGrpcService.Services
         }
 
         /// <summary>
-        /// 从 Nacos 动态发现服务实例后发送 StartMeasurement。
+        /// 从 Nacos 动态发现服务实例后发送 StartMeasurement（无参）。
         /// </summary>
         public async Task SendStartMeasurementToServiceAsync(
             string serviceName,
             string groupName,
             IEnumerable<string>? clusters,
             bool useHttps,
-            StartMessage startMessage,
             CancellationToken cancellationToken = default)
         {
             var addresses = await _nacosGrpcResolver.ResolveAddressesAsync(serviceName, groupName, clusters, useHttps, cancellationToken);
-            await SendStartMeasurementToClientsAsync(addresses, startMessage, cancellationToken);
+            await SendStartMeasurementToClientsAsync(addresses, cancellationToken);
         }
 
         public async Task SendStopMeasurementToServiceAsync(
@@ -81,9 +80,9 @@ namespace SECSGrpcService.Services
         }
 
         /// <summary>
-        /// 对指定远端地址列表主动发送 StartMeasurement。
+        /// 对指定远端地址列表主动发送 StartMeasurement（无参）。
         /// </summary>
-        public async Task SendStartMeasurementToClientsAsync(IEnumerable<string> targetAddresses, StartMessage startMessage, CancellationToken cancellationToken = default)
+        public async Task SendStartMeasurementToClientsAsync(IEnumerable<string> targetAddresses, CancellationToken cancellationToken = default)
         {
             if (targetAddresses == null) return;
 
@@ -96,7 +95,7 @@ namespace SECSGrpcService.Services
                     using var channel = GrpcChannel.ForAddress(address);
                     var client = new global::SECSGrpcService.EFEM.EFEMClient(channel.CreateCallInvoker());
 
-                    var startCall = client.StartMeasurementAsync(startMessage, cancellationToken: cancellationToken);
+                    var startCall = client.StartMeasurementAsync(new NoParams(), cancellationToken: cancellationToken);
                     var startReply = await startCall.ResponseAsync.ConfigureAwait(false);
                     _logger.LogInformation("StartMeasurement -> {Address} returned {Code}: {Msg}", address, startReply.MessageCode, startReply.Message);
                 }
@@ -229,11 +228,7 @@ namespace SECSGrpcService.Services
             }
         }
 
-        /// <summary>
-        /// 对指定的远端地址列表依次发起 StartMeasurement / ProcessProgramSelect / PauseMeasurement / ResumeMeasurement / StopMeasurement 请求。
-        /// 每个地址都会创建一个短生命周期的 gRPC 通道并顺序调用这些 RPC（按需可拆分成单独的方法）。
-        /// </summary>
-        public async Task SendStartMeasurementAndRelatedRequestsToClientsAsync(IEnumerable<string> targetAddresses, StartMessage startMessage, RecipeMessage recipeMessage, WaferMessage waferMessage, CancellationToken cancellationToken = default)
+        public async Task SendStartMeasurementAndRelatedRequestsToClientsAsync(IEnumerable<string> targetAddresses, RecipeMessage recipeMessage, WaferMessage waferMessage, CancellationToken cancellationToken = default)
         {
             if (targetAddresses == null) return;
 
@@ -248,7 +243,7 @@ namespace SECSGrpcService.Services
 
                     try
                     {
-                        var startCall = client.StartMeasurementAsync(startMessage, cancellationToken: cancellationToken);
+                        var startCall = client.StartMeasurementAsync(new NoParams(), cancellationToken: cancellationToken);
                         var startReply = await startCall.ResponseAsync.ConfigureAwait(false);
                         _logger.LogInformation("StartMeasurement -> {Address} returned {Code}: {Msg}", address, startReply.MessageCode, startReply.Message);
                     }

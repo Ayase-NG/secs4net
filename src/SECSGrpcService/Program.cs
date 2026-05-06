@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Nacos.AspNetCore.V2;
 using SECSGrpcService.Services;
 using SECShandler.Handlers;
@@ -43,6 +44,14 @@ builder.Services.AddGrpcReflection();
 // Nacos 服务注册（配置来源：secsgrpcsettings.json -> nacos 节点）
 builder.Services.AddNacosAspNet(builder.Configuration, "nacos");
 
+var mysqlConnection = builder.Configuration.GetValue<string>("MySql:ConnectionString");
+if (!string.IsNullOrWhiteSpace(mysqlConnection))
+{
+    builder.Services.AddDbContextFactory<TraceabilityDbContext>(options =>
+        options.UseMySql(mysqlConnection, ServerVersion.AutoDetect(mysqlConnection)));
+}
+
+builder.Services.AddSingleton<AlarmStore>();
 builder.Services.AddSingleton<NacosGrpcResolver>();
 builder.Services.AddSingleton<SecsGemContext>();
 builder.Services.AddSingleton<SecsEfemGrpc>();

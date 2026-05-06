@@ -28,21 +28,14 @@ public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
         var (targetServiceName, targetGroup, targetClusters, targetUseHttps) = GetTargetOptions();
         var wafer = ToWaferMessage(data);
 
-        var startMessage = new StartMessage
-        {
-            LotId = wafer.LotId ?? string.Empty,
-            Mode = _device.Mode
-        };
-
-        _logger.LogInformation("S2F41 START -> StartMeasurement payload. LotId={LotId}", startMessage.LotId);
-        Console.WriteLine($"S2F41 START 触发 gRPC StartMeasurement, LotId:{startMessage.LotId}");
+        _logger.LogInformation("S2F41 START -> StartMeasurement trigger. LotId={LotId}, Mode={Mode}", wafer.LotId, _device.Mode);
+        Console.WriteLine($"S2F41 START 触发 gRPC StartMeasurement, LotId:{wafer.LotId}, Mode:{_device.Mode}");
 
         await _secsEfemGrpc.SendStartMeasurementToServiceAsync(
             targetServiceName,
             targetGroup,
             targetClusters,
             targetUseHttps,
-            startMessage,
             cancellationToken);
     }
 

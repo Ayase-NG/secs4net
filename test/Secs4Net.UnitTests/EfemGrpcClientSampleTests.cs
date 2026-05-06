@@ -30,12 +30,8 @@ public class EfemGrpcClientSampleTests
         using var channel = GrpcChannel.ForAddress(endpoint);
         var client = new global::SECSGrpcService.EFEM.EFEMClient(channel.CreateCallInvoker());
 
-        var startReply = await client.StartMeasurementAsync(new global::SECSGrpcService.StartMessage
+        var startReply = await client.StartMeasurementAsync(new global::SECSGrpcService.NoParams
         {
-            //Name = "unit-test",
-            LotId = "LOT-UT-001",
-            //PPID = "PP-UT-01",
-            //SlotsList = { 1, 2, 3 }
         }, cancellationToken: cts.Token);
 
         var recipeReply = await client.ProcessProgramSelectAsync(new global::SECSGrpcService.RecipeMessage

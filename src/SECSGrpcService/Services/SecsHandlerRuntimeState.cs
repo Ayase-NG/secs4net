@@ -16,6 +16,7 @@ public sealed class SecsHandlerRuntimeState : IDevice, IReportStorage, IEventLin
     public DeviceRunStatus RunStatus { get; set; } = DeviceRunStatus.Unknown;
     public string ModelNumber { get; set; } = "GWM-PW-20260407";
     public string SoftwareRevision { get; set; } = "V20260407";
+    public string Status { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
 
     public Task StartProcessAsync(string? lotId) => Task.CompletedTask;
     public Task StopProcessAsync() => Task.CompletedTask;

@@ -10,7 +10,7 @@ import "common.proto";
 // 说明：本文件的RPC均为主动外发，调用EFEM的server。
 service EFEM {
   // 开始检测。
-  rpc StartMeasurement (StartMessage) returns (ControlReply);
+  rpc StartMeasurement (NoParams) returns (ControlReply);
 
   // 停止检测。需确认是否为指向性停止，还是立即停止。一般不考虑使用
   rpc StopMeasurement (WaferMessage) returns (ControlReply);
@@ -23,6 +23,9 @@ service EFEM {
 
   // 配方选择。
   rpc ProcessProgramSelect (RecipeMessage) returns (ControlReply);
+
+  // 获取状态
+  rpc StatusReport (NoParams) returns (StatusReply);
 }
 
 // 报警相关主动外发服务。
