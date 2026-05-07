@@ -341,6 +341,7 @@ public partial class Form1 : Form
 internal class TestDevice : IDevice
 {
     public bool IsOnline { get; set; }
+    public string Status { get; set; }
     public string Mode { get; set; }
     public List<uint> SlotsList { get; set; }
 
@@ -348,12 +349,10 @@ internal class TestDevice : IDevice
 
     public string ModelNumber { get; set; }
     public string SoftwareRevision { get; set; }
-    public string Status { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
-
     public TestDevice()
     {
         IsOnline = true;
-        Status = "Offline";
+        Status = "Unknown";
         Mode = "01";
         SlotsList = new List<uint>();
         RunStatus = DeviceRunStatus.Idel;

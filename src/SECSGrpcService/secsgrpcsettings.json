@@ -6,7 +6,12 @@
   },
   "MySql": {
     "_comment": "报警历史记录数据库（MySQL）连接字符串。",
-    "ConnectionString": "server=127.0.0.1;port=3306;database=secs_alarm;user=root;password=123456;"
+    "ConnectionString": "server=localhost;port=3306;database=gwm;user=root;password=root;"
+  },
+  "DeviceStatusRefresh": {
+    "_comment": "设备状态轮询刷新配置。",
+    "Enabled": true,
+    "IntervalMs": 50000
   },
   "Grpc": {
     "_comment": "gRPC 服务端监听配置（本项目对外提供 ReportGrpcService）。",

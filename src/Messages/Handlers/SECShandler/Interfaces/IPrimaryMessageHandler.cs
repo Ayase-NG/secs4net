@@ -10,4 +10,12 @@ namespace SECShandler.Interfaces
 
         Task HandleAsync(SecsGem secsGem, PrimaryMessageWrapper primaryMessage, CancellationToken cancellationToken);
     }
+
+    /// <summary>
+    /// SECS 交互追溯持久化接口。
+    /// </summary>
+    public interface ISecsInteractionHistoryStore
+    {
+        Task SaveInteractionAsync(string sxFy, string secsMessage, byte? hcack, DateTime createdAtUtc, CancellationToken cancellationToken);
+    }
 }

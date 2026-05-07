@@ -49,7 +49,7 @@ message WaferMessage {
   // 批次 ID。
   string lotId = 3;
 
-  // 检测状态（建议由业务约定枚举值）。
+  // 检测状态（Edge，Surface，completed）。
   string status = 4;
 
   // 配方 ID（PPID）。

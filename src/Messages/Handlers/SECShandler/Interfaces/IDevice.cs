@@ -42,7 +42,7 @@ namespace SECShandler.Interfaces
         List<uint> SlotsList { get; set; }
 
         /// <summary>设备当前运行状态</summary>
-        DeviceRunStatus RunStatus { get; }
+        DeviceRunStatus RunStatus { get; set; }
 
         /// <summary>设备型号（MDLN），例如 "GWN-PW-001"</summary>
         string ModelNumber { get; }

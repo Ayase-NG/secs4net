@@ -1,4 +1,5 @@
 using Secs4Net;
+using System.Threading;
 
 namespace SECSGrpcService.Services;
 
@@ -11,6 +12,7 @@ public sealed class SecsGemContext
 {
     private readonly object _sync = new();
     private SecsGem? _secsGem;
+    private int _dataIdCounter = -1;
 
     /// <summary>
     /// 绑定当前可用的 <see cref="SecsGem"/> 实例。
@@ -49,5 +51,14 @@ public sealed class SecsGemContext
             secsGem = _secsGem;
             return secsGem is not null;
         }
+    }
+
+    /// <summary>
+    /// 获取下一个 DATAID（0-255 循环），用于 S6F11 等消息的数据追踪。
+    /// </summary>
+    public byte GetNextDataId()
+    {
+        var next = Interlocked.Increment(ref _dataIdCounter);
+        return unchecked((byte)next);
     }
 }

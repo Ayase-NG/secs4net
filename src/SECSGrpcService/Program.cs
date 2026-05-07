@@ -52,6 +52,7 @@ if (!string.IsNullOrWhiteSpace(mysqlConnection))
 }
 
 builder.Services.AddSingleton<AlarmStore>();
+builder.Services.AddSingleton<ISecsInteractionHistoryStore, RemoteCommandAckHistoryStore>();
 builder.Services.AddSingleton<NacosGrpcResolver>();
 builder.Services.AddSingleton<SecsGemContext>();
 builder.Services.AddSingleton<SecsEfemGrpc>();
@@ -70,6 +71,7 @@ builder.Services.AddSingleton<IPrimaryMessageHandler, RemoteCommandPrimaryMessag
 
 // 注册 SECS PrimaryMessage 持续监听服务（后台服务），与 gRPC 服务并行运行。主要
 builder.Services.AddHostedService<SecsPrimaryMessageListenerService>();
+//builder.Services.AddHostedService<DeviceStatusRefreshService>();
 
 var app = builder.Build();
 

@@ -23,7 +23,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
     }
 
     /// <summary>
-    /// 上报晶圆测试结果
+    /// 上报晶圆测试结果，S6F11
     /// </summary>
     public override async Task<ReportReply> ResultReport(WaferMessage request, ServerCallContext context)
     {
@@ -43,20 +43,19 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
         {
             var data = new S6F11_data
             {
-                DATAID = 0,
-                CEID = 1009,
+                DATAID = _secsGemContext.GetNextDataId(),
+                CEID = 1001,
                 Reports = new List<S6F11_report_data>
                 {
                     new S6F11_report_data
                     {
-                        RPTID = 1009,
+                        RPTID = 1000,
                         Values = new List<object?>
                         {
                             request.WaferId,
                             request.LotId,
                             request.PPID,
                             request.SlotId,
-                            request.Status,
                             request.Result
                         }
                     }

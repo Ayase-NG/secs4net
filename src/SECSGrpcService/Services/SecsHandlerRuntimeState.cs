@@ -10,13 +10,13 @@ public sealed class SecsHandlerRuntimeState : IDevice, IReportStorage, IEventLin
     private volatile bool _allEventsEnabled;
 
     // ===== IDevice =====
-    public bool IsOnline { get; set; } = true;
+    public bool IsOnline { get; set; } = false;
     public string Mode { get; set; } = "01";
     public List<uint> SlotsList { get; set; } = new();
     public DeviceRunStatus RunStatus { get; set; } = DeviceRunStatus.Unknown;
     public string ModelNumber { get; set; } = "GWM-PW-20260407";
     public string SoftwareRevision { get; set; } = "V20260407";
-    public string Status { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+    public string Status { get; set; } = string.Empty;
 
     public Task StartProcessAsync(string? lotId) => Task.CompletedTask;
     public Task StopProcessAsync() => Task.CompletedTask;

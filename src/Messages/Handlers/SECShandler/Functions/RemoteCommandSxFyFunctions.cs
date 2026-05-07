@@ -18,7 +18,9 @@ namespace SECShandler.Functions
         /// </summary>
         public static async Task HandleS2F41Async(
             PrimaryMessageWrapper primary,
+            IDevice device,
             IMeasurementDispatcher measurementDispatcher,
+            ISecsInteractionHistoryStore interactionHistoryStore,
             CancellationToken cancellationToken)
         {
             S2F41_data data;
@@ -30,13 +32,21 @@ namespace SECShandler.Functions
             catch (Exception ex)
             {
                 Console.WriteLine($"S2F41 parse error: {ex.Message}");
-                await primary.TryReplyAsync(S2F42_builder.Build(2));
+                await TryReplyS2F42Async(primary, hcack: 2, interactionHistoryStore, cancellationToken, rcmd: null, errorParam: "Parse");
+                return;
+            }
+
+            var rcmd = (data.RCMD ?? string.Empty).Trim().ToUpperInvariant();
+
+            if (!device.IsOnline)
+            {
+                await TryReplyS2F42Async(primary, hcack: 2, interactionHistoryStore, cancellationToken, rcmd, errorParam: "Communication");
                 return;
             }
 
             try
             {
-                switch (data.RCMD?.ToUpperInvariant())
+                switch (rcmd)
                 {
                     case "START":
                         await measurementDispatcher.DispatchStartMeasurementAsync(data, cancellationToken);
@@ -54,24 +64,30 @@ namespace SECShandler.Functions
                         await measurementDispatcher.DispatchProcessProgramSelectAsync(data, cancellationToken);
                         break;
                     default:
-                        await TryReplyS2F42Async(primary, hcack: 1, cancellationToken, errorParam: "RCMD");
+                        await TryReplyS2F42Async(primary, hcack: 1, interactionHistoryStore, cancellationToken, rcmd, errorParam: "RCMD");
                         return;
                 }
 
-                await TryReplyS2F42Async(primary, hcack: 0, cancellationToken);
+                await TryReplyS2F42Async(primary, hcack: 0, interactionHistoryStore, cancellationToken, rcmd);
             }
             catch
             {
-                await TryReplyS2F42Async(primary, hcack: 2, cancellationToken);
+                await TryReplyS2F42Async(primary, hcack: 2, interactionHistoryStore, cancellationToken, rcmd);
                 throw;
             }
         }
 
         /// <summary>
-        /// 回复 S2F42（Remote Command Acknowledge）。
+        /// 回复 S2F42（Remote Command Acknowledge）并记录数据库追溯日志。
         /// HCACK 约定：0=成功，1=命令不支持/参数问题，2=执行失败。
         /// </summary>
-        private static async Task TryReplyS2F42Async(PrimaryMessageWrapper primaryMessage, byte hcack, CancellationToken cancellationToken, string? errorParam = null)
+        private static async Task TryReplyS2F42Async(
+            PrimaryMessageWrapper primaryMessage,
+            byte hcack,
+            ISecsInteractionHistoryStore interactionHistoryStore,
+            CancellationToken cancellationToken,
+            string? rcmd = null,
+            string? errorParam = null)
         {
             if (!primaryMessage.PrimaryMessage.ReplyExpected)
                 return;
@@ -87,6 +103,10 @@ namespace SECShandler.Functions
             };
 
             await primaryMessage.TryReplyAsync(s2f42, cancellationToken);
+
+            var sxFy = $"S{s2f42.S}F{s2f42.F}";
+            var secsMessage = s2f42.ToString();
+            await interactionHistoryStore.SaveInteractionAsync(sxFy, secsMessage, hcack, DateTime.UtcNow, cancellationToken);
         }
     }
 }
