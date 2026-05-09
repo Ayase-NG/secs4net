@@ -7,6 +7,20 @@ namespace SECSdata
     /// S6F11 "Event Report Send" 数据模型。
     /// 常见结构：L[3] { DATAID, CEID, REPORTS }
     /// REPORTS: L[n] { L[2] { RPTID, V-list } }
+    /// SML样例：
+    /// &lt;L [3]
+    ///   &lt;U1 1&gt;
+    ///   &lt;U4 1001&gt;
+    ///   &lt;L [1]
+    ///     &lt;L [2]
+    ///       &lt;U4 1000&gt;
+    ///       &lt;L [2]
+    ///         &lt;L [2] &lt;A "LOTID"&gt; &lt;A "26P123456"&gt; &gt;
+    ///         &lt;L [2] &lt;A "PPID"&gt; &lt;A "RCP001"&gt; &gt;
+    ///       &gt;
+    ///     &gt;
+    ///   &gt;
+    /// &gt;
     /// </summary>
     public class S6F11_data
     {
@@ -47,9 +61,25 @@ namespace SECSdata
         public uint RPTID { get; set; }
 
         /// <summary>
-        /// 报告值列表（对应 V-list）。
-        /// 由于变量类型可变，统一用 object 承载，由上层按 VID/业务规则解析。
+        /// 报告值列表（V-list）。
+        /// 每个元素使用 CName/CValue 二元组表示，结构为：L[2] { A(CName), CValue }。
         /// </summary>
-        public List<object?> Values { get; set; } = new();
+        public List<S6F11_name_value_data> Values { get; set; } = new();
+    }
+
+    /// <summary>
+    /// S6F11 变量名值对：L[2] { CName, CValue }。
+    /// </summary>
+    public class S6F11_name_value_data
+    {
+        /// <summary>
+        /// 变量名（CName），通常为 ASCII。
+        /// </summary>
+        public string CName { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 变量值（CValue），支持多类型（string/int/byte[]/Item...）。
+        /// </summary>
+        public object? CValue { get; set; }
     }
 }

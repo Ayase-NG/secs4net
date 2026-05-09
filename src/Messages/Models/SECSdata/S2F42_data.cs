@@ -6,6 +6,7 @@ namespace SECSdata
     /// <summary>
     /// S2F42 Remote Command Acknowledge 数据模型。
     /// 常见结构：L[2] { HCACK(B[1]), PARAM_ACK_LIST(L[n]{CPNAME,CPACK}) }
+    /// SML样例：&lt;L [2] &lt;B 0x00&gt; &lt;L [0]&gt; &gt;。
     /// </summary>
     public class S2F42_data
     {

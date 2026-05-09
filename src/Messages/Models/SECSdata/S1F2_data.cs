@@ -2,6 +2,10 @@
 
 namespace SECSdata
 {
+    /// <summary>
+    /// S1F2 On Line Data 数据模型。
+    /// SML样例：&lt;L [2] &lt;A "GWM-PW-001"&gt; &lt;A "V20260407"&gt; &gt;。
+    /// </summary>
     public class S1F2_data
     {
         /// <summary>

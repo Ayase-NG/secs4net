@@ -6,6 +6,7 @@ namespace SECSdata
     /// <summary>
     /// S1F3 "Selected Equipment Status Request" 消息数据模型。
     /// 常见结构：L[n] { SVID... }
+    /// SML样例：&lt;L [2] &lt;U4 1001&gt; &lt;U4 1002&gt; &gt;。
     /// </summary>
     public class S1F3_data
     {

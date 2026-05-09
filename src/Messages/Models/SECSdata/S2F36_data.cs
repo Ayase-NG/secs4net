@@ -9,6 +9,7 @@ namespace SECSdata
     /// <summary>
     /// S2F36 "Link Event Report Acknowledge" 消息的数据模型。
     /// 设备使用此消息回复主机的 S2F35 (Link Event Report) 指令。
+    /// SML样例：&lt;B 0x00&gt;。
     /// </summary>
     public class S2F36_data
     {

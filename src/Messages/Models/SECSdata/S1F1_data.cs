@@ -7,7 +7,8 @@ using System.Threading.Tasks;
 namespace SECSdata
 {
     /// <summary>
-    /// S1F1 "Are You There?",数据内容为空，设置一个时间戳，记录发送时间及打印日志使用
+    /// S1F1 "Are You There?" 数据模型。
+    /// SML样例：S1F1 W（无消息体）。
     /// </summary>
     public class S1F1_data
     {

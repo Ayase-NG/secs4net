@@ -9,6 +9,7 @@ namespace SECSdata
     /// <summary>
     /// 表示 S2F33 "Define Report" 消息的数据模型。
     /// 主机使用此消息来删除及定义数据报告的构成（一个RPTID包含哪些VID）。
+    /// SML样例：&lt;L [2] &lt;U1 0&gt; &lt;L [1] &lt;L [2] &lt;U4 1000&gt; &lt;L [3] &lt;U4 1&gt; &lt;U4 2&gt; &lt;U4 3&gt; &gt; &gt; &gt; &gt;。
     /// </summary>
     public class S2F33_data
     {

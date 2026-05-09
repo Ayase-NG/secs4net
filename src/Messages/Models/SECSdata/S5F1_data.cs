@@ -5,6 +5,7 @@ namespace SECSdata
     /// <summary>
     /// S5F1 Alarm Report Send (ARS) 数据模型。
     /// 标准消息体格式：L[3] { ALCD(B[1]), ALID(Ux/Ix), ALTX(A) }
+    /// SML样例：&lt;L [3] &lt;B 0x80&gt; &lt;U4 1001&gt; &lt;A "OVER TEMP"&gt; &gt;。
     /// </summary>
     public class S5F1_data
     {

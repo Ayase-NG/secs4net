@@ -7,6 +7,10 @@ using Secs4Net;
 
 namespace SECSdata
 {
+    /// <summary>
+    /// S2F41 "Remote Command" 消息数据模型。
+    /// SML样例：&lt;L [2] &lt;A "START"&gt; &lt;L [2] &lt;L [2] &lt;A "LOTID"&gt; &lt;A "26P123456"&gt; &gt; &lt;L [2] &lt;A "PPID"&gt; &lt;A "RCP001"&gt; &gt; &gt; &gt;。
+    /// </summary>
     public class S2F41_data
     {
         /// <summary>

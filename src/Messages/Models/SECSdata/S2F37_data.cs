@@ -6,6 +6,7 @@ namespace SECSdata
     /// <summary>
     /// S2F37 "Enable/Disable Event Report" 消息数据模型。
     /// 常见结构：L[2] { CEED, CEIDLIST }
+    /// SML样例：&lt;L [2] &lt;B 0x01&gt; &lt;L [2] &lt;U4 1001&gt; &lt;U4 1002&gt; &gt; &gt;。
     /// </summary>
     public class S2F37_data
     {

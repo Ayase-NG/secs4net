@@ -47,13 +47,20 @@ namespace SECSparser
                     continue;
                 }
 
-                var values = new List<object?>();
+                var values = new List<S6F11_name_value_data>();
                 var valueList = reportItem[1];
                 if (valueList.Format == SecsFormat.List)
                 {
                     foreach (var v in valueList.Items)
                     {
-                        values.Add(v);
+                        if (v.Format == SecsFormat.List && v.Count >= 2 && v[0].Format == SecsFormat.ASCII)
+                        {
+                            values.Add(new S6F11_name_value_data
+                            {
+                                CName = v[0].GetString() ?? string.Empty,
+                                CValue = v[1]
+                            });
+                        }
                     }
                 }
 

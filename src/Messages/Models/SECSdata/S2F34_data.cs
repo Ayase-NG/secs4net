@@ -9,6 +9,7 @@ namespace SECSdata
     /// <summary>
     /// 表示 S2F34 "Define Report Acknowledge" 消息的数据模型。
     /// 设备使用此消息回复主机的 S2F33 指令。
+    /// SML样例：&lt;B 0x00&gt;。
     /// </summary>
     public class S2F34_data
     {

@@ -34,6 +34,7 @@ namespace SECSGrpcService.Services
             bool useHttps,
             CancellationToken cancellationToken = default)
         {
+            // 魔镜部分需要单独获取address
             var addresses = await _nacosGrpcResolver.ResolveAddressesAsync(serviceName, groupName, clusters, useHttps, cancellationToken);
             await SendStartMeasurementToClientsAsync(addresses, cancellationToken);
         }

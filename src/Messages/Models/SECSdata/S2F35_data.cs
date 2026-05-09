@@ -9,6 +9,7 @@ namespace SECSdata
     /// <summary>
     /// S2F35 "Link Event Report" 消息的数据模型。
     /// 主机通过此消息将报告(RPTID)与事件(CEID)进行绑定。
+    /// SML样例：&lt;L [2] &lt;U1 0&gt; &lt;L [1] &lt;L [2] &lt;U4 1001&gt; &lt;L [2] &lt;U4 1000&gt; &lt;U4 1002&gt; &gt; &gt; &gt; &gt;。
     /// </summary>
     public class S2F35_data
     {

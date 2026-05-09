@@ -3,7 +3,8 @@
 namespace SECSdata
 {
     /// <summary>
-    /// 链接请求回复
+    /// S1F14 建立通信应答数据模型。
+    /// SML样例：&lt;L [2] &lt;B 0x00&gt; &lt;L [2] &lt;A "GWM-PW-001"&gt; &lt;A "V20260407"&gt; &gt; &gt;。
     /// </summary>
     public class S1F14_data
     {

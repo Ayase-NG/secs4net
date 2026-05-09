@@ -5,6 +5,8 @@ namespace SECSdata
     /// <summary>
     /// S1F13 建立通信请求数据模型。
     /// 常见结构可携带设备型号与软件版本，便于设备标识。
+    /// SML样例（标准）：&lt;L [0]&gt;；
+    /// SML样例（兼容扩展）：&lt;L [2] &lt;A "GWM-PW-001"&gt; &lt;A "V20260407"&gt; &gt;。
     /// </summary>
     public class S1F13_data
     {

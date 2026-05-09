@@ -19,7 +19,9 @@ namespace SECSbuilder
                 var valueItems = new List<Item>();
                 foreach (var value in report.Values)
                 {
-                    valueItems.Add(BuildValueItem(value));
+                    valueItems.Add(L(
+                        A(value.CName ?? string.Empty),
+                        BuildValueItem(value.CValue)));
                 }
 
                 reportItems.Add(L(
