@@ -11,3 +11,6 @@
 ## Architectural Preferences
 - Keep `CommunicationPrimaryMessageHandler` as the orchestration/state layer.
 - Centralize concrete `HandleSxFyAsync` implementations in shared function files reused by handlers.
+
+## Code Comments
+- Include key comments at branch points (methods, if/for/switch, and other critical decision points) in future code changes to enhance clarity and maintainability.

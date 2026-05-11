@@ -14,12 +14,18 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
     private readonly ILogger<ReportGrpc> _logger;
     private readonly SecsGemContext _secsGemContext;
     private readonly AlarmStore _alarmStore;
+    private readonly CommandParameterMap _commandParameterMap;
 
-    public ReportGrpc(ILogger<ReportGrpc> logger, SecsGemContext secsGemContext, AlarmStore alarmStore)
+    public ReportGrpc(
+        ILogger<ReportGrpc> logger,
+        SecsGemContext secsGemContext,
+        AlarmStore alarmStore,
+        CommandParameterMap commandParameterMap)
     {
         _logger = logger;
         _secsGemContext = secsGemContext;
         _alarmStore = alarmStore;
+        _commandParameterMap = commandParameterMap;
     }
 
     /// <summary>
@@ -39,6 +45,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
 
         Console.WriteLine($"进入RFID上报 ReportRFID，portId:{request.PortId}, lotId:{request.LotId}, RFID:{request.RFID}, slotsList:{slotsText}");
 
+        // 关键分支：存在活动 SECS 会话时发送 S6F11，否则仅记录警告并返回。
         if (_secsGemContext.TryGet(out var secsGem) && secsGem is not null)
         {
             var data = new S6F11_data
@@ -52,10 +59,10 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
                         RPTID = 1002,
                         Values = new List<S6F11_name_value_data>
                         {
-                            new() { CName = "PORTID", CValue = request.PortId },
-                            new() { CName = "LOTID", CValue = request.LotId },
-                            new() { CName = "RFID", CValue = request.RFID },
-                            new() { CName = "SLOTSLIST", CValue = slotsText }
+                            new() { CName = MapCpName("PORTID"), CValue = request.PortId },
+                            new() { CName = MapCpName("LOTID"), CValue = request.LotId },
+                            new() { CName = MapCpName("RFID"), CValue = request.RFID },
+                            new() { CName = MapCpName("SLOTSLIST"), CValue = slotsText }
                         }
                     }
                 }
@@ -85,7 +92,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
     }
 
     /// <summary>
-    /// 上报晶圆测试结果，S6F11
+    /// 上报晶圆测试结果，S6F11。
     /// </summary>
     public override async Task<ReportReply> ResultReport(WaferMessage request, ServerCallContext context)
     {
@@ -101,6 +108,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
 
         Console.WriteLine($"进入了检测结果上报 ResultReport，waferId:{request.WaferId}, PPID:{request.PPID}, slotId:{request.SlotId}，result：{request.Result}");
 
+        // 关键分支：存在活动 SECS 会话时发送 S6F11，否则仅记录警告并返回。
         if (_secsGemContext.TryGet(out var secsGem) && secsGem is not null)
         {
             var data = new S6F11_data
@@ -114,11 +122,11 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
                         RPTID = 1000,
                         Values = new List<S6F11_name_value_data>
                         {
-                            new() { CName = "WAFERID", CValue = request.WaferId },
-                            new() { CName = "LOTID", CValue = request.LotId },
-                            new() { CName = "PPID", CValue = request.PPID },
-                            new() { CName = "SLOTID", CValue = request.SlotId },
-                            new() { CName = "RESULT", CValue = request.Result }
+                            new() { CName = MapCpName("WAFERID"), CValue = request.WaferId },
+                            new() { CName = MapCpName("LOTID"), CValue = request.LotId },
+                            new() { CName = MapCpName("PPID"), CValue = request.PPID },
+                            new() { CName = MapCpName("SLOTID"), CValue = request.SlotId },
+                            new() { CName = MapCpName("RESULT"), CValue = request.Result }
                         }
                     }
                 }
@@ -161,6 +169,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
 
         Console.WriteLine($"Time：{request.OccurredAtUnixMs}进入了报警上报 ReportAlarm，source:{request.Source}, alarmId:{request.AlarmId}, alarmCode:{request.AlarmCode}");
 
+        // 关键分支：存在活动 SECS 会话时发送 S5F1，否则仅记录警告并返回。
         if (_secsGemContext.TryGet(out var secsGem) && secsGem is not null)
         {
             var alarmCodeText = ToAlarmCodeString(request.AlarmCode);
@@ -187,6 +196,12 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
             RequestId = Guid.NewGuid().ToString("N")
         };
     }
+
+    /// <summary>
+    /// 将上报中的 CPName 映射为 CSV 配置中的参数 ID。
+    /// </summary>
+    private string MapCpName(string cpName)
+        => _commandParameterMap.GetIdOrName(cpName);
 
     private static string ToAlarmCodeString(ByteString alarmCode)
     {

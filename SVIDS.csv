@@ -1,9 +1,0 @@
-ID,Name,Category,DefaultEnabled,Format,Description
-1,AlarmEnabled,Control,TRUE,List,报警启用，报警启用的列表
-2,AlarmSet,Control,TRUE,List,报警设置
-3,Clock,Control,TRUE,U4,时间
-4,ControlState,Control,TRUE,Ascii,控制状态
-5,EventEnabled,Control,TRUE,List,事件已启用
-6,PPExecName,Control,TRUE,Ascii,当前或最近启动的进程的进程程序ID=配方名称
-7,PREVIOUS_PROCESS_STATE,Control,TRUE,U1,先前进程状态
-8,CURRENT_PROCESS_STATE,Control,TRUE,U1,当前进程状态

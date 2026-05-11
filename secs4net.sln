@@ -40,9 +40,6 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Benchmarks", "test\Benchmarks\Benchmarks.csproj", "{7665DF96-5BF2-4175-BFE2-468FF0A5C30B}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Messages", "Messages", "{A6F58FC4-737D-4B78-BF1A-41ABBE6408B4}"
-	ProjectSection(SolutionItems) = preProject
-		消息架构备注.md = 消息架构备注.md
-	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Models", "Models", "{3871ED57-469A-4B3B-9FD0-8958508A2FCE}"
 EndProject
@@ -62,8 +59,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SECSbuilder", "src\Messages
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Config", "Config", "{E1D4DF20-48BF-4AA8-99F2-B7BC7E3876DE}"
 	ProjectSection(SolutionItems) = preProject
-		CEIDS.json = CEIDS.json
-		SVIDS.csv = SVIDS.csv
+		src\Messages\Config\CEIDS.json = src\Messages\Config\CEIDS.json
+		src\Messages\Config\CommandParameter.csv = src\Messages\Config\CommandParameter.csv
+		src\Messages\Config\消息架构备注.md = src\Messages\Config\消息架构备注.md
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SECSGrpcService", "src\SECSGrpcService\SECSGrpcService.csproj", "{BB1217C4-A152-4048-B674-C23631A0C4AD}"

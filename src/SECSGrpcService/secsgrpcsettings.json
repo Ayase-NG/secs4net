@@ -33,6 +33,9 @@
       "DEFAULT"
     ],
     "GrpcTargetUseHttps": false,
+    "GrpcTargetFallbackAddresses": [
+      "127.0.0.1:5001"
+    ],
     "_comment_Enabled": "是否启用 SECS 持续监听。false 时仅启动 gRPC，不启动 HSMS 连接。",
     "_comment_IsActive": "HSMS 连接角色：true=主动连接对端（Active），false=被动监听等待对端连接（Passive）。",
     "_comment_IpAddress_Port": "IsActive=true 时表示对端地址；IsActive=false 时表示本地监听地址。",
@@ -41,7 +44,8 @@
     "_comment_GrpcTargetServiceName": "S2F41 START 触发后，通过 Nacos 按服务名发现目标 gRPC 服务。",
     "_comment_GrpcTargetGroupName": "Nacos 服务分组名，需与目标服务注册时一致。",
     "_comment_GrpcTargetClusters": "Nacos 集群过滤条件，可配置多个。",
-    "_comment_GrpcTargetUseHttps": "通过 Nacos 解析出的地址是否按 HTTPS 访问目标 gRPC。"
+    "_comment_GrpcTargetUseHttps": "通过 Nacos 解析出的地址是否按 HTTPS 访问目标 gRPC。",
+    "_comment_GrpcTargetFallbackAddresses": "当 Nacos 无健康实例时，使用该地址列表直连 gRPC 目标（可填 host:port 或完整 http(s)://host:port）。"
   },
   "nacos": {
     "_comment": "Nacos 服务注册配置（由 AddNacosAspNet 读取）。",

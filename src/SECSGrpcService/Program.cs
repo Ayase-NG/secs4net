@@ -51,6 +51,14 @@ if (!string.IsNullOrWhiteSpace(mysqlConnection))
         options.UseMySql(mysqlConnection, ServerVersion.AutoDetect(mysqlConnection)));
 }
 
+// 关键分支：启动时加载 CPName->ID 映射，供上报前字段转换使用。
+var commandParameterCsv = Path.Combine(builder.Environment.ContentRootPath, "SecsMappings", "CommandParameter.csv");
+builder.Services.AddSingleton(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<CommandParameterMap>>();
+    return CommandParameterMap.LoadFromCsv(commandParameterCsv, logger);
+});
+
 builder.Services.AddSingleton<AlarmStore>();
 builder.Services.AddSingleton<ISecsInteractionHistoryStore, RemoteCommandAckHistoryStore>();
 builder.Services.AddSingleton<NacosGrpcResolver>();

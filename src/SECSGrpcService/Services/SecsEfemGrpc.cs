@@ -32,10 +32,11 @@ namespace SECSGrpcService.Services
             string groupName,
             IEnumerable<string>? clusters,
             bool useHttps,
+            IEnumerable<string>? fallbackAddresses = null,
             CancellationToken cancellationToken = default)
         {
             // 魔镜部分需要单独获取address
-            var addresses = await _nacosGrpcResolver.ResolveAddressesAsync(serviceName, groupName, clusters, useHttps, cancellationToken);
+            var addresses = await _nacosGrpcResolver.ResolveAddressesAsync(serviceName, groupName, clusters, useHttps, fallbackAddresses, cancellationToken);
             await SendStartMeasurementToClientsAsync(addresses, cancellationToken);
         }
 
@@ -48,9 +49,10 @@ namespace SECSGrpcService.Services
             IEnumerable<string>? clusters,
             bool useHttps,
             WaferMessage waferMessage,
+            IEnumerable<string>? fallbackAddresses = null,
             CancellationToken cancellationToken = default)
         {
-            var addresses = await _nacosGrpcResolver.ResolveAddressesAsync(serviceName, groupName, clusters, useHttps, cancellationToken);
+            var addresses = await _nacosGrpcResolver.ResolveAddressesAsync(serviceName, groupName, clusters, useHttps, fallbackAddresses, cancellationToken);
             await SendStopMeasurementToClientsAsync(addresses, waferMessage, cancellationToken);
         }
 
@@ -63,9 +65,10 @@ namespace SECSGrpcService.Services
             IEnumerable<string>? clusters,
             bool useHttps,
             WaferMessage waferMessage,
+            IEnumerable<string>? fallbackAddresses = null,
             CancellationToken cancellationToken = default)
         {
-            var addresses = await _nacosGrpcResolver.ResolveAddressesAsync(serviceName, groupName, clusters, useHttps, cancellationToken);
+            var addresses = await _nacosGrpcResolver.ResolveAddressesAsync(serviceName, groupName, clusters, useHttps, fallbackAddresses, cancellationToken);
             await SendPauseMeasurementToClientsAsync(addresses, waferMessage, cancellationToken);
         }
 
@@ -78,9 +81,10 @@ namespace SECSGrpcService.Services
             IEnumerable<string>? clusters,
             bool useHttps,
             WaferMessage waferMessage,
+            IEnumerable<string>? fallbackAddresses = null,
             CancellationToken cancellationToken = default)
         {
-            var addresses = await _nacosGrpcResolver.ResolveAddressesAsync(serviceName, groupName, clusters, useHttps, cancellationToken);
+            var addresses = await _nacosGrpcResolver.ResolveAddressesAsync(serviceName, groupName, clusters, useHttps, fallbackAddresses, cancellationToken);
             await SendResumeMeasurementToClientsAsync(addresses, waferMessage, cancellationToken);
         }
 
@@ -93,9 +97,10 @@ namespace SECSGrpcService.Services
             IEnumerable<string>? clusters,
             bool useHttps,
             RecipeMessage recipeMessage,
+            IEnumerable<string>? fallbackAddresses = null,
             CancellationToken cancellationToken = default)
         {
-            var addresses = await _nacosGrpcResolver.ResolveAddressesAsync(serviceName, groupName, clusters, useHttps, cancellationToken);
+            var addresses = await _nacosGrpcResolver.ResolveAddressesAsync(serviceName, groupName, clusters, useHttps, fallbackAddresses, cancellationToken);
             await SendProcessProgramSelectToClientsAsync(addresses, recipeMessage, cancellationToken);
         }
 
@@ -107,9 +112,10 @@ namespace SECSGrpcService.Services
             string groupName,
             IEnumerable<string>? clusters,
             bool useHttps,
+            IEnumerable<string>? fallbackAddresses = null,
             CancellationToken cancellationToken = default)
         {
-            var addresses = await _nacosGrpcResolver.ResolveAddressesAsync(serviceName, groupName, clusters, useHttps, cancellationToken);
+            var addresses = await _nacosGrpcResolver.ResolveAddressesAsync(serviceName, groupName, clusters, useHttps, fallbackAddresses, cancellationToken);
             return await GetStatusFromClientsAsync(addresses, cancellationToken);
         }
 

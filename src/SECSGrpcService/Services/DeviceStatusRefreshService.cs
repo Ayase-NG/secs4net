@@ -50,13 +50,15 @@ public sealed class DeviceStatusRefreshService : BackgroundService
                     var targetGroup = _configuration.GetValue<string>("SecsListener:GrpcTargetGroupName") ?? "DEFAULT_GROUP";
                     var targetClusters = _configuration.GetSection("SecsListener:GrpcTargetClusters").Get<string[]>() ?? Array.Empty<string>();
                     var targetUseHttps = _configuration.GetValue<bool>("SecsListener:GrpcTargetUseHttps", false);
+                    var fallbackAddresses = _configuration.GetSection("SecsListener:GrpcTargetFallbackAddresses").Get<string[]>() ?? Array.Empty<string>();
 
                     var status = await _secsEfemGrpc.GetStatusFromServiceAsync(
                         targetServiceName,
                         targetGroup,
                         targetClusters,
                         targetUseHttps,
-                        stoppingToken);
+                        fallbackAddresses,
+                        cancellationToken: stoppingToken);
 
                     if (status is not null)
                     {

@@ -25,7 +25,7 @@ public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
 
     public async Task DispatchStartMeasurementAsync(S2F41_data data, CancellationToken cancellationToken)
     {
-        var (targetServiceName, targetGroup, targetClusters, targetUseHttps) = GetTargetOptions();
+        var (targetServiceName, targetGroup, targetClusters, targetUseHttps, fallbackAddresses) = GetTargetOptions();
         var wafer = ToWaferMessage(data);
 
         _logger.LogInformation("S2F41 START -> StartMeasurement trigger. LotId={LotId}, Mode={Mode}", wafer.LotId, _device.Mode);
@@ -36,45 +36,46 @@ public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
             targetGroup,
             targetClusters,
             targetUseHttps,
+            fallbackAddresses,
             cancellationToken);
     }
 
     public async Task DispatchStopMeasurementAsync(S2F41_data data, CancellationToken cancellationToken)
     {
-        var (targetServiceName, targetGroup, targetClusters, targetUseHttps) = GetTargetOptions();
+        var (targetServiceName, targetGroup, targetClusters, targetUseHttps, fallbackAddresses) = GetTargetOptions();
         var wafer = ToWaferMessage(data);
 
         _logger.LogInformation("S2F41 STOP -> StopMeasurement payload. LotId={LotId}, SlotId={SlotId}", wafer.LotId, wafer.SlotId);
         Console.WriteLine($"S2F41 STOP 触发 gRPC StopMeasurement, LotId:{wafer.LotId}, SlotId:{wafer.SlotId}");
 
-        await _secsEfemGrpc.SendStopMeasurementToServiceAsync(targetServiceName, targetGroup, targetClusters, targetUseHttps, wafer, cancellationToken);
+        await _secsEfemGrpc.SendStopMeasurementToServiceAsync(targetServiceName, targetGroup, targetClusters, targetUseHttps, wafer, fallbackAddresses, cancellationToken);
     }
 
     public async Task DispatchPauseMeasurementAsync(S2F41_data data, CancellationToken cancellationToken)
     {
-        var (targetServiceName, targetGroup, targetClusters, targetUseHttps) = GetTargetOptions();
+        var (targetServiceName, targetGroup, targetClusters, targetUseHttps, fallbackAddresses) = GetTargetOptions();
         var wafer = ToWaferMessage(data);
 
         _logger.LogInformation("S2F41 PAUSE -> PauseMeasurement payload. WaferId={WaferId}, SlotId={SlotId}, LotId={LotId}", wafer.WaferId, wafer.SlotId, wafer.LotId);
         Console.WriteLine($"S2F41 PAUSE 触发 gRPC PauseMeasurement，WaferId:{wafer.WaferId}, SlotId:{wafer.SlotId}, LotId:{wafer.LotId}");
 
-        await _secsEfemGrpc.SendPauseMeasurementToServiceAsync(targetServiceName, targetGroup, targetClusters, targetUseHttps, wafer, cancellationToken);
+        await _secsEfemGrpc.SendPauseMeasurementToServiceAsync(targetServiceName, targetGroup, targetClusters, targetUseHttps, wafer, fallbackAddresses, cancellationToken);
     }
 
     public async Task DispatchResumeMeasurementAsync(S2F41_data data, CancellationToken cancellationToken)
     {
-        var (targetServiceName, targetGroup, targetClusters, targetUseHttps) = GetTargetOptions();
+        var (targetServiceName, targetGroup, targetClusters, targetUseHttps, fallbackAddresses) = GetTargetOptions();
         var wafer = ToWaferMessage(data);
 
         _logger.LogInformation("S2F41 RESUME -> ResumeMeasurement payload. WaferId={WaferId}, SlotId={SlotId}, LotId={LotId}", wafer.WaferId, wafer.SlotId, wafer.LotId);
         Console.WriteLine($"S2F41 RESUME 触发 gRPC ResumeMeasurement，WaferId:{wafer.WaferId}, SlotId:{wafer.SlotId}, LotId:{wafer.LotId}");
 
-        await _secsEfemGrpc.SendResumeMeasurementToServiceAsync(targetServiceName, targetGroup, targetClusters, targetUseHttps, wafer, cancellationToken);
+        await _secsEfemGrpc.SendResumeMeasurementToServiceAsync(targetServiceName, targetGroup, targetClusters, targetUseHttps, wafer, fallbackAddresses, cancellationToken);
     }
 
     public async Task DispatchProcessProgramSelectAsync(S2F41_data data, CancellationToken cancellationToken)
     {
-        var (targetServiceName, targetGroup, targetClusters, targetUseHttps) = GetTargetOptions();
+        var (targetServiceName, targetGroup, targetClusters, targetUseHttps, fallbackAddresses) = GetTargetOptions();
         var wafer = ToWaferMessage(data);
 
         var slots = ReadSlotsParameter(data.Parameters).ToList();
@@ -92,10 +93,10 @@ public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
         _logger.LogInformation("S2F41 PPSELECT -> ProcessProgramSelect payload. PPID={PPID}, Mode={Mode}, LotId={LotId}, SlotsList={Slots}", recipe.PPID, recipe.Mode, recipe.LotId, slotsText);
         Console.WriteLine($"S2F41 PPSELECT 触发 gRPC ProcessProgramSelect，PPID:{recipe.PPID}, Mode:{recipe.Mode}, LotId:{recipe.LotId}, SlotsList:{slotsText}");
 
-        await _secsEfemGrpc.SendProcessProgramSelectToServiceAsync(targetServiceName, targetGroup, targetClusters, targetUseHttps, recipe, cancellationToken);
+        await _secsEfemGrpc.SendProcessProgramSelectToServiceAsync(targetServiceName, targetGroup, targetClusters, targetUseHttps, recipe, fallbackAddresses, cancellationToken);
     }
 
-    private (string ServiceName, string GroupName, string[] Clusters, bool UseHttps) GetTargetOptions()
+    private (string ServiceName, string GroupName, string[] Clusters, bool UseHttps, string[] FallbackAddresses) GetTargetOptions()
     {
         var targetServiceName = _configuration.GetValue<string>("SecsListener:GrpcTargetServiceName");
         if (string.IsNullOrWhiteSpace(targetServiceName))
@@ -106,8 +107,9 @@ public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
         var targetGroup = _configuration.GetValue<string>("SecsListener:GrpcTargetGroupName") ?? "DEFAULT_GROUP";
         var targetClusters = _configuration.GetSection("SecsListener:GrpcTargetClusters").Get<string[]>() ?? Array.Empty<string>();
         var targetUseHttps = _configuration.GetValue<bool>("SecsListener:GrpcTargetUseHttps", false);
+        var fallbackAddresses = _configuration.GetSection("SecsListener:GrpcTargetFallbackAddresses").Get<string[]>() ?? Array.Empty<string>();
 
-        return (targetServiceName, targetGroup, targetClusters, targetUseHttps);
+        return (targetServiceName, targetGroup, targetClusters, targetUseHttps, fallbackAddresses);
     }
 
     private static WaferMessage ToWaferMessage(S2F41_data data)
