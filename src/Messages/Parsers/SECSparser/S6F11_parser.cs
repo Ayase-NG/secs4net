@@ -47,20 +47,39 @@ namespace SECSparser
                     continue;
                 }
 
-                var values = new List<S6F11_name_value_data>();
+                var values = new List<S6F11_parameter_data>();
                 var valueList = reportItem[1];
                 if (valueList.Format == SecsFormat.List)
                 {
                     foreach (var v in valueList.Items)
                     {
-                        if (v.Format == SecsFormat.List && v.Count >= 2 && v[0].Format == SecsFormat.ASCII)
+                        // 关键分支：每个参数项要求是 L[2]，第一项为 VID，第二项为 CPVal。
+                        if (v.Format != SecsFormat.List || v.Count < 2)
+                            continue;
+
+                        ushort vid;
+                        try
                         {
-                            values.Add(new S6F11_name_value_data
-                            {
-                                CName = v[0].GetString() ?? string.Empty,
-                                CValue = v[1]
-                            });
+                            var rawVid = v[0].GetUIntId("VID");
+                            if (rawVid > ushort.MaxValue)
+                                continue;
+                            vid = (ushort)rawVid;
                         }
+                        catch
+                        {
+                            continue;
+                        }
+
+                        var cpVal = v[1].Format == SecsFormat.ASCII
+                            ? (v[1].GetString() ?? string.Empty)
+                            : v[1].ToString();
+
+                        values.Add(new S6F11_parameter_data
+                        {
+                            VID = vid,
+                            CPName = string.Empty,
+                            CPVal = cpVal
+                        });
                     }
                 }
 

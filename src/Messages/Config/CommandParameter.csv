@@ -8,7 +8,7 @@ ID,Name,Category,Format,Description
 1006,PORTID,wafer,1,LoadPort编号，记录晶圆和所在Port
 1007,RESULT,wafer,Pass,检测结果，一般为Pass，Fail，Error
 2000,PPID,setting,RecipeName1,配方名称
-2001,MODE,setting,00,运行模式，一般分为未设置00，全自动01，半自动02，分拣03
+2001,MODE,setting,00,运行模式，一般分为：未设置00，全自动01，半自动02，分拣03
 2XXX,参数名,setting,123,配方中各参数名及对应值，后续补充
 3000,STATUS,device,unknown,设备状态，一般分为unknown，initializing，Idel，Running，Jam
 3001,COMMUNICATIONS,device,Online,设备通信状态，一般分为远程在线，远程离线，本地离线。remote online，remote offline，local offline

@@ -1,33 +1,31 @@
 namespace SECSGrpcService.Services;
 
 /// <summary>
-/// 命令参数映射表（CPName -> ID）。
-/// 数据来源：`SecsMappings/CommandParameter.csv`。
+/// 命令参数映射表（CPName -> VID）。
+/// 数据来源：`CommandParameter.csv`。
 /// </summary>
 public sealed class CommandParameterMap
 {
-    private readonly Dictionary<string, string> _nameToId;
+    private readonly Dictionary<string, ushort> _nameToVid;
 
     /// <summary>
     /// 使用已解析映射初始化。
     /// </summary>
-    public CommandParameterMap(Dictionary<string, string> nameToId)
+    public CommandParameterMap(Dictionary<string, ushort> nameToVid)
     {
-        _nameToId = nameToId;
+        _nameToVid = nameToVid;
     }
 
     /// <summary>
-    /// 根据 CPName 获取对应 ID；未命中时返回原始名称。
+    /// 尝试根据 CPName 获取 VID。
     /// </summary>
-    public string GetIdOrName(string cpName)
+    public bool TryGetVid(string cpName, out ushort vid)
     {
+        vid = 0;
         if (string.IsNullOrWhiteSpace(cpName))
-            return string.Empty;
+            return false;
 
-        // 关键分支：映射命中则返回 ID，否则保留原始字段名以保证兼容。
-        return _nameToId.TryGetValue(cpName.Trim(), out var id)
-            ? id
-            : cpName.Trim();
+        return _nameToVid.TryGetValue(cpName.Trim(), out vid);
     }
 
     /// <summary>
@@ -36,7 +34,7 @@ public sealed class CommandParameterMap
     /// </summary>
     public static CommandParameterMap LoadFromCsv(string csvPath, ILogger? logger = null)
     {
-        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var map = new Dictionary<string, ushort>(StringComparer.OrdinalIgnoreCase);
 
         // 关键分支：文件不存在时返回空映射。
         if (!File.Exists(csvPath))
@@ -64,12 +62,16 @@ public sealed class CommandParameterMap
                 if (parts.Length < 2)
                     continue;
 
-                var id = parts[0].Trim();
+                var idText = parts[0].Trim();
                 var name = parts[1].Trim();
-                if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(name))
+                if (string.IsNullOrWhiteSpace(idText) || string.IsNullOrWhiteSpace(name))
                     continue;
 
-                map[name] = id;
+                // 关键分支：仅接受可解析为 ushort 的 VID（如 2XXX 这类占位值会被忽略）。
+                if (!ushort.TryParse(idText, out var vid))
+                    continue;
+
+                map[name] = vid;
             }
 
             logger?.LogInformation("Loaded {Count} command parameter mappings from {Path}", map.Count, csvPath);

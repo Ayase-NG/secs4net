@@ -7,7 +7,7 @@ namespace SECSdata
     /// S6F11 "Event Report Send" 数据模型。
     /// 常见结构：L[3] { DATAID, CEID, REPORTS }
     /// REPORTS: L[n] { L[2] { RPTID, V-list } }
-    /// SML样例：
+    /// SML样例（VID/CPVal）：
     /// &lt;L [3]
     ///   &lt;U1 1&gt;
     ///   &lt;U4 1001&gt;
@@ -15,8 +15,8 @@ namespace SECSdata
     ///     &lt;L [2]
     ///       &lt;U4 1000&gt;
     ///       &lt;L [2]
-    ///         &lt;L [2] &lt;A "LOTID"&gt; &lt;A "26P123456"&gt; &gt;
-    ///         &lt;L [2] &lt;A "PPID"&gt; &lt;A "RCP001"&gt; &gt;
+    ///         &lt;L [2] &lt;U2 1000&gt; &lt;A "26P123456"&gt; &gt;
+    ///         &lt;L [2] &lt;U2 2000&gt; &lt;A "RCP001"&gt; &gt;
     ///       &gt;
     ///     &gt;
     ///   &gt;
@@ -62,24 +62,30 @@ namespace SECSdata
 
         /// <summary>
         /// 报告值列表（V-list）。
-        /// 每个元素使用 CName/CValue 二元组表示，结构为：L[2] { A(CName), CValue }。
+        /// 每个元素结构为：L[2] { VID(U2), CPVal(A) }。
         /// </summary>
-        public List<S6F11_name_value_data> Values { get; set; } = new();
+        public List<S6F11_parameter_data> Values { get; set; } = new();
     }
 
     /// <summary>
-    /// S6F11 变量名值对：L[2] { CName, CValue }。
+    /// S6F11 参数项：VID/CPName/CPVal。
+    /// 上报编码使用 VID + CPVal；CPName 仅用于内部追踪与调试。
     /// </summary>
-    public class S6F11_name_value_data
+    public class S6F11_parameter_data
     {
         /// <summary>
-        /// 变量名（CName），通常为 ASCII。
+        /// 参数编号（VID）。
         /// </summary>
-        public string CName { get; set; } = string.Empty;
+        public ushort VID { get; set; }
 
         /// <summary>
-        /// 变量值（CValue），支持多类型（string/int/byte[]/Item...）。
+        /// 参数名称（CPName），用于内部可读性。
         /// </summary>
-        public object? CValue { get; set; }
+        public string CPName { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 参数值（CPVal）。
+        /// </summary>
+        public string CPVal { get; set; } = string.Empty;
     }
 }

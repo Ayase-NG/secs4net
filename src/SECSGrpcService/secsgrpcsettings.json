@@ -8,6 +8,15 @@
     "_comment": "报警历史记录数据库（MySQL）连接字符串。",
     "ConnectionString": "server=localhost;port=3306;database=gwm;user=root;password=root;"
   },
+  "CommandParameter": {
+    "_comment": "命令参数映射文件配置（CPName->VID）。",
+    "CsvPath": "../Messages/Config/CommandParameter.csv",
+    "CandidatePaths": [
+      "../Messages/Config/CommandParameter.csv"
+    ],
+    "_comment_CsvPath": "优先使用该路径（可填绝对路径或相对项目根路径）；为空时按 CandidatePaths 探测。",
+    "_comment_CandidatePaths": "按顺序尝试，命中首个存在文件即使用。"
+  },
   "DeviceStatusRefresh": {
     "_comment": "设备状态轮询刷新配置。",
     "Enabled": true,

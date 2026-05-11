@@ -57,12 +57,13 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
                     new S6F11_report_data
                     {
                         RPTID = 1002,
-                        Values = new List<S6F11_name_value_data>
+                        // Mapping结果预设模板
+                        Values = new List<S6F11_parameter_data>
                         {
-                            new() { CName = MapCpName("PORTID"), CValue = request.PortId },
-                            new() { CName = MapCpName("LOTID"), CValue = request.LotId },
-                            new() { CName = MapCpName("RFID"), CValue = request.RFID },
-                            new() { CName = MapCpName("SLOTSLIST"), CValue = slotsText }
+                            CreateParam("PORTID", request.PortId),
+                            CreateParam("LOTID", request.LotId),
+                            CreateParam("RFID", request.RFID),
+                            CreateParam("SLOTSLIST", slotsText)
                         }
                     }
                 }
@@ -120,13 +121,13 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
                     new S6F11_report_data
                     {
                         RPTID = 1000,
-                        Values = new List<S6F11_name_value_data>
+                        Values = new List<S6F11_parameter_data>
                         {
-                            new() { CName = MapCpName("WAFERID"), CValue = request.WaferId },
-                            new() { CName = MapCpName("LOTID"), CValue = request.LotId },
-                            new() { CName = MapCpName("PPID"), CValue = request.PPID },
-                            new() { CName = MapCpName("SLOTID"), CValue = request.SlotId },
-                            new() { CName = MapCpName("RESULT"), CValue = request.Result }
+                            CreateParam("WAFERID", request.WaferId),
+                            CreateParam("LOTID", request.LotId),
+                            CreateParam("PPID", request.PPID),
+                            CreateParam("SLOTID", request.SlotId),
+                            CreateParam("RESULT", request.Result)
                         }
                     }
                 }
@@ -198,10 +199,21 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
     }
 
     /// <summary>
-    /// 将上报中的 CPName 映射为 CSV 配置中的参数 ID。
+    /// 构建 S6F11 参数项：VID/CPName/CPVal。
+    /// 实际上传结构由 builder 编码为 VID+CPVal。
     /// </summary>
-    private string MapCpName(string cpName)
-        => _commandParameterMap.GetIdOrName(cpName);
+    private S6F11_parameter_data CreateParam(string cpName, object? value)
+    {
+        // 关键分支：映射命中则填写 VID，未命中则使用 0 作为未知 VID。
+        var hasVid = _commandParameterMap.TryGetVid(cpName, out var vid);
+
+        return new S6F11_parameter_data
+        {
+            VID = hasVid ? vid : (ushort)0,
+            CPName = cpName,
+            CPVal = value?.ToString() ?? string.Empty
+        };
+    }
 
     private static string ToAlarmCodeString(ByteString alarmCode)
     {

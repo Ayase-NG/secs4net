@@ -51,12 +51,37 @@ if (!string.IsNullOrWhiteSpace(mysqlConnection))
         options.UseMySql(mysqlConnection, ServerVersion.AutoDetect(mysqlConnection)));
 }
 
-// 关键分支：启动时加载 CPName->ID 映射，供上报前字段转换使用。
-var commandParameterCsv = Path.Combine(builder.Environment.ContentRootPath, "SecsMappings", "CommandParameter.csv");
+// 关键分支：统一从配置读取命令参数映射文件路径，支持单路径与候选路径列表。
+var commandParameterSection = builder.Configuration.GetSection("CommandParameter");
+var configuredCommandParameterCsv = commandParameterSection.GetValue<string>("CsvPath");
+var commandParameterCsv = configuredCommandParameterCsv;
+
+if (string.IsNullOrWhiteSpace(commandParameterCsv))
+{
+    // 关键分支：若未配置单路径，则按配置中的候选路径依次探测首个存在文件。
+    var candidateRelativePaths = commandParameterSection.GetSection("CandidatePaths").Get<string[]>() ?? Array.Empty<string>();
+
+    // 关键分支：若配置文件未提供候选项，则保底使用一个默认相对路径。
+    if (candidateRelativePaths.Length == 0)
+    {
+        candidateRelativePaths = ["src/Messages/Config/CommandParameter.csv"];
+    }
+
+    var candidatePaths = candidateRelativePaths
+        .Where(p => !string.IsNullOrWhiteSpace(p))
+        .Select(p => Path.IsPathRooted(p)
+            ? p
+            : Path.Combine(builder.Environment.ContentRootPath, p))
+        .ToArray();
+
+    commandParameterCsv = candidatePaths.FirstOrDefault(File.Exists)
+        ?? candidatePaths[0];
+}
+
 builder.Services.AddSingleton(sp =>
 {
     var logger = sp.GetRequiredService<ILogger<CommandParameterMap>>();
-    return CommandParameterMap.LoadFromCsv(commandParameterCsv, logger);
+    return CommandParameterMap.LoadFromCsv(commandParameterCsv!, logger);
 });
 
 builder.Services.AddSingleton<AlarmStore>();
