@@ -18,5 +18,8 @@ service ReportGrpcService {
 
 	// 上报报警（报警发生）。
 	rpc ReportAlarm (.GY.EFEM.AlarmReportRequest) returns (.GY.EFEM.AlarmReply);
+
+	// 请求远程在线状态。
+	rpc RequestOnlineStatus (.GY.EFEM.NoParams) returns (.GY.EFEM.OnlineStatusReply);
 }
 

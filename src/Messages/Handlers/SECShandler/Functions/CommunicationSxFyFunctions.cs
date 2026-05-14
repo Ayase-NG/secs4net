@@ -1,4 +1,5 @@
 using Secs4Net;
+using SECSbuilder;
 using SECSdata;
 using SECShandler.Interfaces;
 using SECSparser;
@@ -75,6 +76,118 @@ namespace SECShandler.Functions
                     )
                 )
             };
+
+            try
+            {
+                await primary.TryReplyAsync(reply).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                await secsGem.SendAsync(reply).ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>
+        /// 处理 S1F15（Request OFF-LINE）并回复 S1F16。
+        /// OFLACK 约定：0=接受并进入 OffLine，1=拒绝。
+        /// </summary>
+        public static async Task HandleS1F15ReplyAsync(SecsGem secsGem, IDevice device, PrimaryMessageWrapper primary)
+        {
+            var data = new S1F16_data
+            {
+                OFLACK = 1,
+                timeStamp = DateTime.UtcNow
+            };
+
+            try
+            {
+                // 方法关键节点：先解析并校验 S1F15 消息结构。
+                _ = S1F15_parser.Parse(primary.PrimaryMessage);
+            }
+            catch
+            {
+                // if 关键分支：消息格式异常时拒绝脱机。
+                var rejectReply = S1F16_builder.Build(data);
+                try
+                {
+                    await primary.TryReplyAsync(rejectReply).ConfigureAwait(false);
+                }
+                catch (Exception)
+                {
+                    await secsGem.SendAsync(rejectReply).ConfigureAwait(false);
+                }
+                return;
+            }
+
+            // if 关键分支：当前最小状态机允许从任意在线状态切换到 OffLine。
+            if (device.IsOnline is DeviceOnlineState.OnLineLocal or DeviceOnlineState.OnLineRemote)
+            {
+                device.IsOnline = DeviceOnlineState.OffLine;
+                data.OFLACK = 0;
+            }
+            else
+            {
+                // else 分支：已经处于 OffLine 时也返回接受，保持幂等。
+                data.OFLACK = 0;
+            }
+
+            var reply = S1F16_builder.Build(data);
+
+            try
+            {
+                await primary.TryReplyAsync(reply).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                await secsGem.SendAsync(reply).ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>
+        /// 处理 S1F17（Request ON-LINE）并回复 S1F18。
+        /// ONLACK 约定：0=接受并进入在线本地，1=拒绝。
+        /// </summary>
+        public static async Task HandleS1F17ReplyAsync(SecsGem secsGem, IDevice device, PrimaryMessageWrapper primary)
+        {
+            var data = new S1F18_data
+            {
+                ONLACK = 1,
+                timeStamp = DateTime.UtcNow
+            };
+
+            try
+            {
+                // 方法关键节点：先解析并校验 S1F17 消息结构。
+                _ = S1F17_parser.Parse(primary.PrimaryMessage);
+            }
+            catch
+            {
+                // if 关键分支：消息格式异常时拒绝上线。
+                var rejectReply = S1F18_builder.Build(data);
+                try
+                {
+                    await primary.TryReplyAsync(rejectReply).ConfigureAwait(false);
+                }
+                catch (Exception)
+                {
+                    await secsGem.SendAsync(rejectReply).ConfigureAwait(false);
+                }
+                return;
+            }
+
+            // if 关键分支：设备运行状态允许时接受上线并切换到 OnLineLocal。
+            if (device.IsOnline is DeviceOnlineState.OffLine)
+            {
+                device.IsOnline = DeviceOnlineState.OnLineLocal;
+                data.ONLACK = 0;
+            }
+            else
+            {
+                // else 分支：不满足上线条件时保持拒绝。
+                data.ONLACK = 1;
+            }
+
+            var reply = S1F18_builder.Build(data);
 
             try
             {

@@ -13,14 +13,16 @@ namespace SECShandler.Handlers
             _device = device;
         }
 
-        // 本处理器负责处理 S1F1（Are You There?）和 S1F13（Request On-Line Data），注册进SupportedMessages。
+        // 本处理器负责处理 S1F1（Are You There?）、S1F13（Establish Communications）、S1F15（Request OFF-LINE）和 S1F17（Request ON-LINE），注册进 SupportedMessages。
         public IEnumerable<(int S, int F)> SupportedMessages =>
         [
             (1, 1),
-            (1, 13)
+            (1, 13),
+            (1, 15),
+            (1, 17)
         ];
 
-        public bool CanHandle(int s, int f) => (s, f) is (1, 1) or (1, 13);
+        public bool CanHandle(int s, int f) => (s, f) is (1, 1) or (1, 13) or (1, 15) or (1, 17);
 
         public async Task HandleAsync(SecsGem secsGem, PrimaryMessageWrapper primaryMessage, CancellationToken cancellationToken)
         {
@@ -33,6 +35,12 @@ namespace SECShandler.Handlers
                     break;
                 case (1, 13):
                     await CommunicationSxFyFunctions.HandleS1F13ReplyAsync(secsGem, _device, primaryMessage);
+                    break;
+                case (1, 15):
+                    await CommunicationSxFyFunctions.HandleS1F15ReplyAsync(secsGem, _device, primaryMessage);
+                    break;
+                case (1, 17):
+                    await CommunicationSxFyFunctions.HandleS1F17ReplyAsync(secsGem, _device, primaryMessage);
                     break;
             }
         }

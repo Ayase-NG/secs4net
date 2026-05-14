@@ -139,8 +139,14 @@ public sealed class SecsPrimaryMessageListenerService : BackgroundService
             return;
         }
 
-        // 方法关键节点：不在总分发层静默丢弃消息。
-        // 具体在线状态权限由各 Handler/SxFyFunction 负责，并向 Host 返回明确应答。
+        // if 关键分支：设备处于 OffLine 时，仅放行通信相关消息（S1F1/S1F13/S1F15/S1F17）。
+        if (msg.S == 1 && msg.F is 1 or 13 or 15 or 17)
+        {
+            await handler.HandleAsync(secsGem, primaryMessage, cancellationToken);
+            return;
+        }
+
+        // 方法关键节点：其他消息权限由各 Handler/SxFyFunction 负责，并向 Host 返回明确应答。
         await handler.HandleAsync(secsGem, primaryMessage, cancellationToken);
     }
 

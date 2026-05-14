@@ -112,6 +112,16 @@ message StatusReply {
   string runStatus = 4;
 }
 
+// 在线状态查询请求。
+message OnlineStatusReply{
+  // 返回码：0=成功，其他=失败/异常。
+  int32 messageCode = 1;
+  // 返回信息。
+  string message = 2;
+  // 在线状态：true=在线，false=离线。
+  bool online = 3;
+}
+
 // ===== 报警与上报相关 =====
 
 // 报警级别。

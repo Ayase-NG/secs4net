@@ -16,19 +16,22 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
     private readonly AlarmStore _alarmStore;
     private readonly CommandParameterMap _commandParameterMap;
     private readonly IActiveSxFyDispatcher _activeSxFyDispatcher;
+    private readonly IDevice _device;
 
     public ReportGrpc(
         ILogger<ReportGrpc> logger,
         SecsGemContext secsGemContext,
         AlarmStore alarmStore,
         CommandParameterMap commandParameterMap,
-        IActiveSxFyDispatcher activeSxFyDispatcher)
+        IActiveSxFyDispatcher activeSxFyDispatcher,
+        IDevice device)
     {
         _logger = logger;
         _secsGemContext = secsGemContext;
         _alarmStore = alarmStore;
         _commandParameterMap = commandParameterMap;
         _activeSxFyDispatcher = activeSxFyDispatcher;
+        _device = device;
     }
 
     /// <summary>
@@ -160,6 +163,34 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
             Message = "OK",
             RequestId = Guid.NewGuid().ToString("N")
         };
+    }
+
+    /// <summary>
+    /// 请求切换远程在线状态。
+    /// 规则：仅当当前为 OnLineLocal 时切换为 OnLineRemote 并返回成功。
+    /// </summary>
+    public override Task<OnlineStatusReply> RequestOnlineStatus(NoParams request, ServerCallContext context)
+    {
+        // if 关键分支：当前处于 OnLineLocal 时允许切换为 OnLineRemote。
+        if (_device.IsOnline == DeviceOnlineState.OnLineLocal)
+        {
+            _device.IsOnline = DeviceOnlineState.OnLineRemote;
+
+            return Task.FromResult(new OnlineStatusReply
+            {
+                MessageCode = 0,
+                Message = "切换成功，已进入远程在线状态。",
+                Online = true
+            });
+        }
+
+        // 兜底分支：非 OnLineLocal 场景拒绝切换。
+        return Task.FromResult(new OnlineStatusReply
+        {
+            MessageCode = 1,
+            Message = "目前为离线状态，禁止切换为远程。",
+            Online = _device.IsOnline is DeviceOnlineState.OnLineLocal or DeviceOnlineState.OnLineRemote
+        });
     }
 
     /// <summary>
