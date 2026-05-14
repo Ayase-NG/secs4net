@@ -340,7 +340,7 @@ public partial class Form1 : Form
 
 internal class TestDevice : IDevice
 {
-    public bool IsOnline { get; set; }
+    public DeviceOnlineState IsOnline { get; set; }
     public string Status { get; set; }
     public string Mode { get; set; }
     public List<uint> SlotsList { get; set; }
@@ -353,7 +353,7 @@ internal class TestDevice : IDevice
     public string SoftwareRevision { get; set; }
     public TestDevice()
     {
-        IsOnline = true;
+        IsOnline = DeviceOnlineState.OnLineRemote;
         Status = "Unknown";
         Mode = "01";
         SlotsList = new List<uint>();

@@ -1,3 +1,5 @@
-SVID,NAME,HOLDING,DESCRIPTION
-1000,DOOR,1001,���Ƿ�رգ�00-δ���йرգ�01-δ���д򿪣�10-���йرգ�11-���д�
-1001,RECIPEID,0,��ǰ���Ե��䷽ID
+﻿SVID,NAME,HOLDING,SourceType,DESCRIPTION
+1000,DOOR,1001,PLC,门状态（00-未关未开，01-未关已开，10-已关未开，11-已关已开）
+1001,RECIPEID,0,Property,当前设备配方ID
+1002,WORKFLOWSTEP,0,Workflow,当前流程步骤（模板示例）
+1003,MODE,1002,PLC,设备模式寄存器值（模板示例）

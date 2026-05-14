@@ -1,5 +1,6 @@
 using GY.PLC.Comm;
 using Secs4Net;
+using SECSbuilder;
 using SECShandler.Functions;
 using SECShandler.Interfaces;
 
@@ -41,6 +42,26 @@ namespace SECShandler.Handlers
         public async Task HandleAsync(SecsGem secsGem, PrimaryMessageWrapper primaryMessage, CancellationToken cancellationToken)
         {
             var msg = primaryMessage.PrimaryMessage;
+
+            // if 关键分支：设备 OffLine 时，对非通信类请求返回明确拒绝应答，避免 Host 超时。
+            if (_device.IsOnline == DeviceOnlineState.OffLine && (msg.S, msg.F) is (2, 33) or (2, 35) or (2, 37))
+            {
+                switch ((msg.S, msg.F))
+                {
+                    case (2, 33):
+                        // DRACK=1：内部/条件不满足，当前用于离线拒绝。
+                        await primaryMessage.TryReplyAsync(S2F34_builder.Build(1));
+                        return;
+                    case (2, 35):
+                        // LRACK=1：内部/条件不满足，当前用于离线拒绝。
+                        await primaryMessage.TryReplyAsync(S2F36_builder.Build(1));
+                        return;
+                    case (2, 37):
+                        // EAC=2：格式或内部错误，当前用于离线拒绝。
+                        await primaryMessage.TryReplyAsync(S2F38_builder.Build(2));
+                        return;
+                }
+            }
 
             switch ((msg.S, msg.F))
             {

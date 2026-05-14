@@ -38,9 +38,10 @@ namespace SECShandler.Functions
 
             var rcmd = (data.RCMD ?? string.Empty).Trim().ToUpperInvariant();
 
-            if (!device.IsOnline)
+            // if 关键分支：只有 On-Line Remote 状态才允许远程命令执行。
+            if (device.IsOnline is not DeviceOnlineState.OnLineRemote)
             {
-                await TryReplyS2F42Async(primary, hcack: 2, interactionHistoryStore, cancellationToken, rcmd, errorParam: "Communication");
+                await TryReplyS2F42Async(primary, hcack: 2, interactionHistoryStore, cancellationToken, rcmd, errorParam: "NotOnlineState");
                 return;
             }
 

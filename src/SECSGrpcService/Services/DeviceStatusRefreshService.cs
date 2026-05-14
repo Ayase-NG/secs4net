@@ -62,14 +62,15 @@ public sealed class DeviceStatusRefreshService : BackgroundService
 
                     if (status is not null)
                     {
-                        _device.IsOnline = status.MessageCode == 0;
+                        // if 关键分支：当前最小实现中，状态拉取成功即视为 On-Line Remote。
+                        _device.IsOnline = status.MessageCode == 0 ? DeviceOnlineState.OnLineRemote : DeviceOnlineState.OffLine;
                         _device.Mode = string.IsNullOrWhiteSpace(status.Mode) ? _device.Mode : status.Mode;
                         _device.Status = status.RunStatus ?? string.Empty;
                         _device.RunStatus = ParseRunStatus(status.RunStatus);
                     }
                     else
                     {
-                        _device.IsOnline = false;
+                        _device.IsOnline = DeviceOnlineState.OffLine;
                     }
                 }
             }
@@ -79,7 +80,7 @@ public sealed class DeviceStatusRefreshService : BackgroundService
             }
             catch (Exception ex)
             {
-                _device.IsOnline = false;
+                _device.IsOnline = DeviceOnlineState.OffLine;
                 _logger.LogWarning(ex, "Device status refresh failed.");
             }
 

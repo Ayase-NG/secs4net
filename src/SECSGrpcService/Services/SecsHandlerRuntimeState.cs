@@ -10,7 +10,7 @@ public sealed class SecsHandlerRuntimeState : IDevice, IReportStorage, IEventLin
     private volatile bool _allEventsEnabled;
 
     // ===== IDevice =====
-    public bool IsOnline { get; set; } = false;
+    public DeviceOnlineState IsOnline { get; set; } = DeviceOnlineState.OffLine;
     public string Mode { get; set; } = "01";
     public List<uint> SlotsList { get; set; } = new();
     public DeviceRunStatus RunStatus { get; set; } = DeviceRunStatus.Unknown;

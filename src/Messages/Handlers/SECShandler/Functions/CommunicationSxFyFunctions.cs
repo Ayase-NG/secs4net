@@ -15,7 +15,6 @@ namespace SECShandler.Functions
         /// </summary>
         public static async Task HandleS1F1ReplyAsync(SecsGem secsGem, IDevice device, PrimaryMessageWrapper primary)
         {
-            device.IsOnline = true; // 收到 S1F1 视为设备在线。
             var reply = new SecsMessage(1, 2, replyExpected: false)
             {
                 Name = "OnlineData",
@@ -62,7 +61,8 @@ namespace SECShandler.Functions
             }
 
             var statusAllowed = device.RunStatus is DeviceRunStatus.Idel or DeviceRunStatus.Running;
-            var accept = payloadValid && device.IsOnline && statusAllowed;
+            // if 关键分支：设备处于 OffLine 时仅允许通信链路，S1F13 应答按拒绝处理。
+            var accept = payloadValid && device.IsOnline is not DeviceOnlineState.OffLine && statusAllowed;
 
             var reply = new SecsMessage(1, 14, replyExpected: false)
             {

@@ -24,13 +24,26 @@ namespace SECShandler.Interfaces
     }
 
     /// <summary>
+    /// 设备在线控制状态。
+    /// </summary>
+    public enum DeviceOnlineState
+    {
+        // 脱机状态，仅允许通信相关功能
+        OffLine,
+        // 在线本地状态，不允许远程命令控制
+        OnLineLocal,
+        // 在线远程状态，允许远程命令控制
+        OnLineRemote
+    }
+
+    /// <summary>
     /// 设备业务接口，用于获取设备状态和信息。
     /// 具体实现由主程序提供，与通信层解耦。
     /// </summary>
     public interface IDevice
     {
-        /// <summary>设备是否在线（可接受远程控制）</summary>
-        bool IsOnline { get; set; }
+        /// <summary>设备在线控制状态（Off-Line / On-Line Local / On-Line Remote）</summary>
+        DeviceOnlineState IsOnline { get; set; }
 
         /// <summary>设备状态:unknown,initializing,idle,running</summary>
         string Status { get; set; }

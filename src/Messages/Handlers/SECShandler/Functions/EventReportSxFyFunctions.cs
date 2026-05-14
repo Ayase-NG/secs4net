@@ -23,53 +23,41 @@ namespace SECShandler.Functions
         // 方法关键节点：保证 PlcClient 的订阅初始化只执行一次。
         private static int _plcSubscriptionStarted;
 
+        // 方法关键节点：SVID 值缓存（短 TTL），避免高频重复读取 PLC。
+        private static readonly Dictionary<uint, SvidCacheEntry> SvidValueCache = new();
+
+        // 方法关键节点：保护缓存并发访问的锁对象。
+        private static readonly object SvidValueCacheLock = new();
+
+        // 方法关键节点：缓存过期时长（最小骨架固定值，后续可配置化）。
+        private static readonly TimeSpan SvidCacheTtl = TimeSpan.FromMilliseconds(300);
+
         /// <summary>
         /// 处理 S1F3（Selected Equipment Status Request）并回复 S1F4。
-        /// 新逻辑：通过 SVID.csv 反查 NAME 与 HOLDING，后续由 PLC 读取 HOLDING 寄存器返回值。
+        /// 最小骨架：先从 SVID.csv 读取相关 SVID 元数据（含 SourceType），再通过统一解析入口整合数据源抽象、批量读取与缓存。
         /// </summary>
         public static async Task HandleS1F3ReplyAsync(SecsGem secsGem, IDevice device, PrimaryMessageWrapper primary, PlcClient? plcClient = null)
         {
             // 方法关键节点：先解析 S1F3 请求，拿到请求的 SVID 列表。
             var request = S1F3_parser.Parse(primary.PrimaryMessage);
-            var response = new S1F4_data();
 
-            // if 关键分支：当前未请求具体 SVID 时，保持最小行为（返回空列表）。
-            if (!request.IsAllSvid)
+            // if 关键分支：空请求（All SVID）时，使用当前映射表中的全部 SVID。
+            var requestedSvids = request.IsAllSvid
+                ? SvidMap.Value.Keys.OrderBy(x => x).ToList()
+                : request.SVIDList;
+
+            // 方法关键节点：统一调用解析入口，内部完成缓存命中、分组批量读取与结果合并。
+            var resolved = await ResolveSvidValuesAsync(requestedSvids, device, plcClient).ConfigureAwait(false);
+
+            var response = new S1F4_data
             {
-                // for each 关键分支：按请求顺序逐项处理，保证与 S1F3 请求顺序一致。
-                foreach (var svid in request.SVIDList)
+                // for each 关键分支：按请求顺序生成返回项，保证主机侧索引对齐。
+                StatusList = requestedSvids.Select(svid => new S1F4_status_data
                 {
-                    // if 关键分支：先通过 SVID.csv 反查 NAME/HOLDING；未命中则返回空值。
-                    if (!SvidMap.Value.TryGetValue(svid, out var row))
-                    {
-                        response.StatusList.Add(new S1F4_status_data
-                        {
-                            SVID = svid,
-                            SV = string.Empty
-                        });
-                        continue;
-                    }
-
-                    string svValue;
-
-                    // if 关键分支：当 SVID 反查 NAME 为 RECIPEID 时，直接返回设备实时 RECIPEID。
-                    if (string.Equals(row.Name, "RECIPEID", StringComparison.OrdinalIgnoreCase))
-                    {
-                        svValue = device.RECIPEID ?? string.Empty;
-                    }
-                    else
-                    {
-                        // else 关键分支：非 RECIPEID 变量继续走 PLC HOLDING 实读。
-                        svValue = await ReadHoldingValueAsync(plcClient, row.HoldingAddress).ConfigureAwait(false);
-                    }
-
-                    response.StatusList.Add(new S1F4_status_data
-                    {
-                        SVID = svid,
-                        SV = svValue
-                    });
-                }
-            }
+                    SVID = svid,
+                    SV = resolved.TryGetValue(svid, out var value) ? value : string.Empty
+                }).ToList()
+            };
 
             // 方法关键节点：通过 builder 统一构建 S1F4 并回包。
             var reply = S1F4_builder.Build(response);
@@ -295,6 +283,87 @@ namespace SECShandler.Functions
         }
 
         /// <summary>
+        /// 统一解析 SVID 值入口。
+        /// 处理顺序：先查缓存 -> 再按数据源分组批量读取 -> 回填缓存。
+        /// </summary>
+        private static async Task<Dictionary<uint, string>> ResolveSvidValuesAsync(
+            IReadOnlyList<uint> svids,
+            IDevice device,
+            PlcClient? plcClient)
+        {
+            var result = new Dictionary<uint, string>();
+            var rowsToRead = new List<(uint Svid, SvidMapRow Row)>();
+
+            // for each 关键分支：先尝试缓存命中，未命中再进入读取队列。
+            foreach (var svid in svids)
+            {
+                // if 关键分支：未在映射表中定义的 SVID 直接给空值。
+                if (!SvidMap.Value.TryGetValue(svid, out var row))
+                {
+                    result[svid] = string.Empty;
+                    continue;
+                }
+
+                // if 关键分支：缓存命中且未过期时直接使用。
+                if (TryGetCacheValue(svid, out var cached))
+                {
+                    result[svid] = cached;
+                    continue;
+                }
+
+                rowsToRead.Add((svid, row));
+            }
+
+            // if 关键分支：全部命中缓存时可直接返回。
+            if (rowsToRead.Count == 0)
+            {
+                return result;
+            }
+
+            // 方法关键节点：创建 provider 上下文并准备数据源实现。
+            var context = new SvidResolveContext(device, plcClient);
+            var providers = new ISvidValueProvider[]
+            {
+                new DeviceSvidValueProvider(),
+                new PlcSvidValueProvider(),
+                new WorkflowSvidValueProvider()
+            };
+
+            // for each 关键分支：按 provider 分组批量读取并合并结果。
+            foreach (var provider in providers)
+            {
+                var group = rowsToRead.Where(x => provider.CanHandle(x.Row)).ToList();
+
+                // if 关键分支：当前 provider 没有可处理项则跳过。
+                if (group.Count == 0)
+                {
+                    continue;
+                }
+
+                var batchResult = await provider.ReadBatchAsync(group, context).ConfigureAwait(false);
+
+                // for each 关键分支：写入结果并回填缓存。
+                foreach (var kv in batchResult)
+                {
+                    result[kv.Key] = kv.Value;
+                    SetCacheValue(kv.Key, kv.Value);
+                }
+            }
+
+            // for each 兜底分支：仍未产生值的项统一填空，保证返回完整性。
+            foreach (var (svid, _) in rowsToRead)
+            {
+                if (!result.ContainsKey(svid))
+                {
+                    result[svid] = string.Empty;
+                    SetCacheValue(svid, string.Empty);
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
         /// 读取 PLC HOLDING 寄存器并返回字符串值。
         /// </summary>
         private static async Task<string> ReadHoldingValueAsync(PlcClient? plcClient, ushort holdingAddress)
@@ -332,7 +401,209 @@ namespace SECShandler.Functions
         }
 
         /// <summary>
-        /// SVID.csv 行模型：用于 S1F3 中按 SVID 反查 NAME/HOLDING。
+        /// 缓存快照结构：保存值与过期时间。
+        /// </summary>
+        private sealed class SvidCacheEntry
+        {
+            /// <summary>
+            /// 当前缓存值。
+            /// </summary>
+            public string Value { get; init; } = string.Empty;
+
+            /// <summary>
+            /// 过期时间（UTC）。
+            /// </summary>
+            public DateTime ExpiresAtUtc { get; init; }
+        }
+
+        /// <summary>
+        /// SVID 解析上下文：向 provider 传递运行时依赖。
+        /// </summary>
+        private sealed class SvidResolveContext
+        {
+            public SvidResolveContext(IDevice device, PlcClient? plcClient)
+            {
+                Device = device;
+                PlcClient = plcClient;
+            }
+
+            public IDevice Device { get; }
+
+            public PlcClient? PlcClient { get; }
+        }
+
+        /// <summary>
+        /// SVID 值提供者抽象。
+        /// </summary>
+        private interface ISvidValueProvider
+        {
+            /// <summary>
+            /// 判断当前 provider 是否可处理指定 SVID 行。
+            /// </summary>
+            bool CanHandle(SvidMapRow row);
+
+            /// <summary>
+            /// 批量读取一组 SVID 值并返回结果字典。
+            /// </summary>
+            Task<Dictionary<uint, string>> ReadBatchAsync(
+                IReadOnlyList<(uint Svid, SvidMapRow Row)> rows,
+                SvidResolveContext context);
+        }
+
+        /// <summary>
+        /// 设备内存态数据源 provider。
+        /// </summary>
+        private sealed class DeviceSvidValueProvider : ISvidValueProvider
+        {
+            public bool CanHandle(SvidMapRow row)
+            {
+                // if 关键分支：优先使用 SourceType=Property 路由到设备属性源。
+                if (string.Equals(row.SourceType, "Property", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                // 兼容分支：旧 CSV 未配置 SourceType 时，仍按 RECIPEID 走设备属性源。
+                return string.Equals(row.Name, "RECIPEID", StringComparison.OrdinalIgnoreCase);
+            }
+
+            public Task<Dictionary<uint, string>> ReadBatchAsync(
+                IReadOnlyList<(uint Svid, SvidMapRow Row)> rows,
+                SvidResolveContext context)
+            {
+                var result = new Dictionary<uint, string>();
+
+                // for each 关键分支：逐项返回设备内存态值。
+                foreach (var (svid, row) in rows)
+                {
+                    // if 关键分支：RECIPEID 返回 device.RECIPEID。
+                    if (string.Equals(row.Name, "RECIPEID", StringComparison.OrdinalIgnoreCase))
+                    {
+                        result[svid] = context.Device.RECIPEID ?? string.Empty;
+                    }
+                    else
+                    {
+                        result[svid] = string.Empty;
+                    }
+                }
+
+                return Task.FromResult(result);
+            }
+        }
+
+        /// <summary>
+        /// PLC HOLDING 数据源 provider。
+        /// 说明：当前“批量”实现为逻辑批量（分组后逐项读），后续可替换为底层真批读。
+        /// </summary>
+        private sealed class PlcSvidValueProvider : ISvidValueProvider
+        {
+            public bool CanHandle(SvidMapRow row)
+            {
+                // if 关键分支：SourceType=PLC 时明确路由到 PLC。
+                if (string.Equals(row.SourceType, "PLC", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                // if 关键分支：SourceType 已明确且非 PLC 时，不抢占其他 provider。
+                if (!string.IsNullOrWhiteSpace(row.SourceType))
+                {
+                    return false;
+                }
+
+                // 兼容分支：旧 CSV 未配置 SourceType 时，沿用原有默认行为。
+                return !string.Equals(row.Name, "RECIPEID", StringComparison.OrdinalIgnoreCase);
+            }
+
+            public async Task<Dictionary<uint, string>> ReadBatchAsync(
+                IReadOnlyList<(uint Svid, SvidMapRow Row)> rows,
+                SvidResolveContext context)
+            {
+                var result = new Dictionary<uint, string>();
+
+                // for each 关键分支：逐项读取 HOLDING 寄存器值。
+                foreach (var (svid, row) in rows)
+                {
+                    var value = await ReadHoldingValueAsync(context.PlcClient, row.HoldingAddress).ConfigureAwait(false);
+                    result[svid] = value;
+                }
+
+                return result;
+            }
+        }
+
+        /// <summary>
+        /// Workflow 数据源 provider 骨架。
+        /// 说明：当前最小实现返回空值，后续可接工作流上下文或状态机。
+        /// </summary>
+        private sealed class WorkflowSvidValueProvider : ISvidValueProvider
+        {
+            public bool CanHandle(SvidMapRow row)
+            {
+                // if 关键分支：仅处理 SourceType=Workflow 的项。
+                return string.Equals(row.SourceType, "Workflow", StringComparison.OrdinalIgnoreCase);
+            }
+
+            public Task<Dictionary<uint, string>> ReadBatchAsync(
+                IReadOnlyList<(uint Svid, SvidMapRow Row)> rows,
+                SvidResolveContext context)
+            {
+                var result = new Dictionary<uint, string>();
+
+                // for each 关键分支：当前骨架阶段统一返回空字符串占位。
+                foreach (var (svid, _) in rows)
+                {
+                    result[svid] = string.Empty;
+                }
+
+                return Task.FromResult(result);
+            }
+        }
+
+        /// <summary>
+        /// 从缓存读取 SVID 值。
+        /// </summary>
+        private static bool TryGetCacheValue(uint svid, out string value)
+        {
+            lock (SvidValueCacheLock)
+            {
+                // if 关键分支：缓存不存在则直接 miss。
+                if (!SvidValueCache.TryGetValue(svid, out var entry))
+                {
+                    value = string.Empty;
+                    return false;
+                }
+
+                // if 关键分支：缓存已过期则删除并返回 miss。
+                if (entry.ExpiresAtUtc <= DateTime.UtcNow)
+                {
+                    SvidValueCache.Remove(svid);
+                    value = string.Empty;
+                    return false;
+                }
+
+                value = entry.Value;
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// 写入 SVID 值缓存。
+        /// </summary>
+        private static void SetCacheValue(uint svid, string value)
+        {
+            lock (SvidValueCacheLock)
+            {
+                SvidValueCache[svid] = new SvidCacheEntry
+                {
+                    Value = value,
+                    ExpiresAtUtc = DateTime.UtcNow.Add(SvidCacheTtl)
+                };
+            }
+        }
+
+        /// <summary>
+        /// SVID.csv 行模型：用于 S1F3 中按 SVID 反查 NAME/HOLDING/SourceType。
         /// </summary>
         private sealed class SvidMapRow
         {
@@ -345,11 +616,50 @@ namespace SECShandler.Functions
             /// PLC Holding 地址（HOLDING）。
             /// </summary>
             public ushort HoldingAddress { get; init; }
+
+            /// <summary>
+            /// 数据来源类型（SourceType），例如 Property/PLC/Workflow。
+            /// </summary>
+            public string SourceType { get; init; } = string.Empty;
+        }
+
+        /// <summary>
+        /// 规范化 SourceType。
+        /// </summary>
+        private static string NormalizeSourceType(string sourceTypeText, string name)
+        {
+            // if 关键分支：显式指定 Property 时直接返回规范值。
+            if (string.Equals(sourceTypeText, "Property", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Property";
+            }
+
+            // if 关键分支：显式指定 PLC 时直接返回规范值。
+            if (string.Equals(sourceTypeText, "PLC", StringComparison.OrdinalIgnoreCase))
+            {
+                return "PLC";
+            }
+
+            // if 关键分支：显式指定 Workflow 时直接返回规范值。
+            if (string.Equals(sourceTypeText, "Workflow", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Workflow";
+            }
+
+            // 兼容分支：旧 CSV 未配置 SourceType 时，根据 NAME 回退推断。
+            if (string.Equals(name, "RECIPEID", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Property";
+            }
+
+            // 默认分支：其余项默认归类为 PLC。
+            return "PLC";
         }
 
         /// <summary>
         /// 读取并解析 SVID.csv。
-        /// CSV 头要求：SVID,NAME,HOLDING,DESCRIPTION。
+        /// 新推荐列头：SVID,NAME,HOLDING,SourceType,DESCRIPTION。
+        /// 兼容旧格式：SVID,NAME,HOLDING,DESCRIPTION（未配置 SourceType 时自动回退）。
         /// </summary>
         private static Dictionary<uint, SvidMapRow> LoadSvidMap(string csvPath)
         {
@@ -378,7 +688,7 @@ namespace SECShandler.Functions
                     continue;
                 }
 
-                var parts = line.Split(',', 4);
+                var parts = line.Split(',', 5);
 
                 // if 关键分支：列数不足时跳过异常行。
                 if (parts.Length < 3)
@@ -400,10 +710,15 @@ namespace SECShandler.Functions
                     continue;
                 }
 
+                // if 关键分支：优先读取第4列 SourceType；旧格式下该列可能是 DESCRIPTION，此时回退推断。
+                var sourceTypeText = parts.Length >= 4 ? parts[3].Trim() : string.Empty;
+                var sourceType = NormalizeSourceType(sourceTypeText, name);
+
                 map[svid] = new SvidMapRow
                 {
                     Name = name,
-                    HoldingAddress = holding
+                    HoldingAddress = holding,
+                    SourceType = sourceType
                 };
             }
 
