@@ -61,7 +61,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Config", "Config", "{E1D4DF
 	ProjectSection(SolutionItems) = preProject
 		src\Messages\Config\CEIDS.json = src\Messages\Config\CEIDS.json
 		src\Messages\Config\CommandParameter.csv = src\Messages\Config\CommandParameter.csv
+		SVID.csv = SVID.csv
 		src\Messages\Config\消息架构备注.md = src\Messages\Config\消息架构备注.md
+		目前进展.csv = 目前进展.csv
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SECSGrpcService", "src\SECSGrpcService\SECSGrpcService.csproj", "{BB1217C4-A152-4048-B674-C23631A0C4AD}"

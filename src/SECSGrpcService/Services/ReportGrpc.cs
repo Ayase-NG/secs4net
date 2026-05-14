@@ -1,8 +1,8 @@
 using Google.Protobuf;
 using Grpc.Core;
-using SECSbuilder;
 using SECSdata;
 using SECShandler.Functions;
+using SECShandler.Interfaces;
 
 namespace SECSGrpcService.Services;
 
@@ -15,17 +15,20 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
     private readonly SecsGemContext _secsGemContext;
     private readonly AlarmStore _alarmStore;
     private readonly CommandParameterMap _commandParameterMap;
+    private readonly IActiveSxFyDispatcher _activeSxFyDispatcher;
 
     public ReportGrpc(
         ILogger<ReportGrpc> logger,
         SecsGemContext secsGemContext,
         AlarmStore alarmStore,
-        CommandParameterMap commandParameterMap)
+        CommandParameterMap commandParameterMap,
+        IActiveSxFyDispatcher activeSxFyDispatcher)
     {
         _logger = logger;
         _secsGemContext = secsGemContext;
         _alarmStore = alarmStore;
         _commandParameterMap = commandParameterMap;
+        _activeSxFyDispatcher = activeSxFyDispatcher;
     }
 
     /// <summary>
@@ -45,44 +48,24 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
 
         Console.WriteLine($"进入RFID上报 ReportRFID，portId:{request.PortId}, lotId:{request.LotId}, RFID:{request.RFID}, slotsList:{slotsText}");
 
-        // 关键分支：存在活动 SECS 会话时发送 S6F11，否则仅记录警告并返回。
-        if (_secsGemContext.TryGet(out var secsGem) && secsGem is not null)
-        {
-            var data = new S6F11_data
-            {
-                DATAID = _secsGemContext.GetNextDataId(),
-                CEID = 1007,
-                Reports = new List<S6F11_report_data>
-                {
-                    new S6F11_report_data
-                    {
-                        RPTID = 1002,
-                        // Mapping结果预设模板
-                        Values = new List<S6F11_parameter_data>
-                        {
-                            CreateParam("PORTID", request.PortId),
-                            CreateParam("LOTID", request.LotId),
-                            CreateParam("RFID", request.RFID),
-                            CreateParam("SLOTSLIST", slotsText)
-                        }
-                    }
-                }
-            };
+        // 方法关键节点：通过主动外发 SxFyFunctions 统一完成 S6F11 打包。
+        var data = ActiveReportSxFyFunctions.BuildRfidReport(
+            _secsGemContext.GetNextDataId(),
+            request.PortId,
+            request.LotId,
+            request.RFID,
+            slotsText,
+            TryGetVid);
 
-            try
-            {
-                var s6f11 = S6F11_builder.Build(data);
-                await secsGem.SendAsync(s6f11, context.CancellationToken).ConfigureAwait(false);
-                _logger.LogInformation("S6F11 sent for ReportRFID. CEID={CEID}, RPTID={RPTID}, PortId={PortId}, RFID={RFID}", data.CEID, data.Reports[0].RPTID, request.PortId, request.RFID);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to send S6F11 after ReportRFID.");
-            }
+        // if 关键分支：发送成功与失败分别记录日志，不影响 gRPC 返回。
+        var sent = await _activeSxFyDispatcher.SendS6F11Async(data, context.CancellationToken).ConfigureAwait(false);
+        if (sent)
+        {
+            _logger.LogInformation("S6F11 sent for ReportRFID. CEID={CEID}, RPTID={RPTID}, PortId={PortId}, RFID={RFID}", data.CEID, data.Reports[0].RPTID, request.PortId, request.RFID);
         }
         else
         {
-            _logger.LogWarning("SECS session not available. Skip S6F11 send after ReportRFID.");
+            _logger.LogWarning("Failed or skipped S6F11 send after ReportRFID. PortId={PortId}, RFID={RFID}", request.PortId, request.RFID);
         }
 
         return new ReportReply
@@ -109,44 +92,25 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
 
         Console.WriteLine($"进入了检测结果上报 ResultReport，waferId:{request.WaferId}, PPID:{request.PPID}, slotId:{request.SlotId}，result：{request.Result}");
 
-        // 关键分支：存在活动 SECS 会话时发送 S6F11，否则仅记录警告并返回。
-        if (_secsGemContext.TryGet(out var secsGem) && secsGem is not null)
-        {
-            var data = new S6F11_data
-            {
-                DATAID = _secsGemContext.GetNextDataId(),
-                CEID = 1001,
-                Reports = new List<S6F11_report_data>
-                {
-                    new S6F11_report_data
-                    {
-                        RPTID = 1000,
-                        Values = new List<S6F11_parameter_data>
-                        {
-                            CreateParam("WAFERID", request.WaferId),
-                            CreateParam("LOTID", request.LotId),
-                            CreateParam("PPID", request.PPID),
-                            CreateParam("SLOTID", request.SlotId),
-                            CreateParam("RESULT", request.Result)
-                        }
-                    }
-                }
-            };
+        // 方法关键节点：通过主动外发 SxFyFunctions 统一完成 S6F11 打包。
+        var data = ActiveReportSxFyFunctions.BuildResultReport(
+            _secsGemContext.GetNextDataId(),
+            request.WaferId,
+            request.LotId,
+            request.PPID,
+            request.SlotId,
+            request.Result,
+            TryGetVid);
 
-            try
-            {
-                var s6f11 = S6F11_builder.Build(data);
-                await secsGem.SendAsync(s6f11, context.CancellationToken).ConfigureAwait(false);
-                _logger.LogInformation("S6F11 sent. CEID={CEID}, RPTID={RPTID}, WaferId={WaferId}, Result={Result}", data.CEID, data.Reports[0].RPTID, request.WaferId, request.Result);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to send S6F11 after ResultReport.");
-            }
+        // if 关键分支：发送成功与失败分别记录日志，不影响 gRPC 返回。
+        var sent = await _activeSxFyDispatcher.SendS6F11Async(data, context.CancellationToken).ConfigureAwait(false);
+        if (sent)
+        {
+            _logger.LogInformation("S6F11 sent. CEID={CEID}, RPTID={RPTID}, WaferId={WaferId}, Result={Result}", data.CEID, data.Reports[0].RPTID, request.WaferId, request.Result);
         }
         else
         {
-            _logger.LogWarning("SECS session not available. Skip S6F11 send after ResultReport.");
+            _logger.LogWarning("Failed or skipped S6F11 send after ResultReport. WaferId={WaferId}, Result={Result}", request.WaferId, request.Result);
         }
 
         return new ReportReply
@@ -199,20 +163,18 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
     }
 
     /// <summary>
-    /// 构建 S6F11 参数项：VID/CPName/CPVal。
-    /// 实际上传结构由 builder 编码为 VID+CPVal。
+    /// VID 映射委托，供主动外发打包函数注入。
     /// </summary>
-    private S6F11_parameter_data CreateParam(string cpName, object? value)
+    private (bool Found, ushort Vid) TryGetVid(string cpName)
     {
-        // 关键分支：映射命中则填写 VID，未命中则使用 0 作为未知 VID。
-        var hasVid = _commandParameterMap.TryGetVid(cpName, out var vid);
-
-        return new S6F11_parameter_data
+        // if 关键分支：映射命中则返回对应 VID。
+        if (_commandParameterMap.TryGetVid(cpName, out var vid))
         {
-            VID = hasVid ? vid : (ushort)0,
-            CPName = cpName,
-            CPVal = value?.ToString() ?? string.Empty
-        };
+            return (true, vid);
+        }
+
+        // 兜底分支：未命中映射时返回 false 与 0。
+        return (false, 0);
     }
 
     private static string ToAlarmCodeString(ByteString alarmCode)

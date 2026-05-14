@@ -1,3 +1,4 @@
+using GY.PLC.Comm;
 using Microsoft.EntityFrameworkCore;
 using Nacos.AspNetCore.V2;
 using SECSGrpcService.Services;
@@ -42,7 +43,9 @@ builder.Services.AddGrpc();
 builder.Services.AddGrpcReflection();
 
 // Nacos 服务注册（配置来源：secsgrpcsettings.json -> nacos 节点）
-builder.Services.AddNacosAspNet(builder.Configuration, "nacos");
+// 方法关键节点：同时注册 PlcClient，供 S1F3 读取 PLC Holding 寄存器。
+builder.Services.AddNacosAspNet(builder.Configuration, "nacos")
+    .AddSingleton<PlcClient>();
 
 var mysqlConnection = builder.Configuration.GetValue<string>("MySql:ConnectionString");
 if (!string.IsNullOrWhiteSpace(mysqlConnection))
@@ -90,6 +93,7 @@ builder.Services.AddSingleton<NacosGrpcResolver>();
 builder.Services.AddSingleton<SecsGemContext>();
 builder.Services.AddSingleton<SecsEfemGrpc>();
 builder.Services.AddSingleton<IMeasurementDispatcher, GrpcMeasurementDispatcher>();
+builder.Services.AddSingleton<IActiveSxFyDispatcher, ActiveSxFyDispatcher>();
 
 // SECShandler 运行时状态与依赖（统一单例，供多个 handler 共享）
 builder.Services.AddSingleton<SecsHandlerRuntimeState>();

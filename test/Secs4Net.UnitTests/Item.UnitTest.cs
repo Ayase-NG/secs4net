@@ -50,7 +50,7 @@ public class ItemUnitTest
         {
             option.ServerAddresses = ["http://localhost:8848"];
             option.DefaultTimeOut = 15000;
-            option.Namespace = "GWE";
+            option.Namespace = "GWP";
             option.ServiceName = "Edge_Ui";
             option.GroupName = "GY";
             option.ClusterName = "DEFAULT";

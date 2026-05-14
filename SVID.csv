@@ -1,0 +1,3 @@
+SVID,NAME,HOLDING,DESCRIPTION
+1000,DOOR,1001,门是否关闭：00-未运行关闭，01-未运行打开，10-运行关闭，11-运行打开
+1001,RECIPEID,0,当前测试的配方ID

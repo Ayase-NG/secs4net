@@ -125,7 +125,7 @@ public partial class Form1 : Form
         var primaryHandlers = new List<IPrimaryMessageHandler>
         {
             new CommunicationPrimaryMessageHandler(testDevice),
-            new EventReportPrimaryMessageHandler(reportStorage, eventLinkStorage, eventEnableStorage),
+            new EventReportPrimaryMessageHandler(reportStorage, eventLinkStorage, eventEnableStorage, testDevice),
         };
 
         var routes = new Dictionary<(int S, int F), IPrimaryMessageHandler>();
@@ -347,6 +347,8 @@ internal class TestDevice : IDevice
 
     public DeviceRunStatus RunStatus { get; set; }
 
+    public string RECIPEID { get; set; }
+
     public string ModelNumber { get; set; }
     public string SoftwareRevision { get; set; }
     public TestDevice()
@@ -356,6 +358,7 @@ internal class TestDevice : IDevice
         Mode = "01";
         SlotsList = new List<uint>();
         RunStatus = DeviceRunStatus.Idel;
+        RECIPEID = string.Empty;
         ModelNumber = "GWM-PW-20260407";
         SoftwareRevision = "V20260407";
     }

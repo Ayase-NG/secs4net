@@ -44,6 +44,9 @@ namespace SECShandler.Interfaces
         /// <summary>设备当前运行状态</summary>
         DeviceRunStatus RunStatus { get; set; }
 
+        /// <summary>当前配方 ID（RECIPEID），用于实时状态查询与 S1F3/S1F4 应答。</summary>
+        string RECIPEID { get; set; }
+
         /// <summary>设备型号（MDLN），例如 "GWN-PW-001"</summary>
         string ModelNumber { get; }
 
