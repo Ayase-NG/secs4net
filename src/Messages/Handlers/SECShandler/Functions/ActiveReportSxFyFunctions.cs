@@ -92,6 +92,44 @@ namespace SECShandler.Functions
         }
 
         /// <summary>
+        /// 构建在线状态变更场景的 S6F11 数据。
+        /// 预设模板：CEID=1021（OnlineStateChanged），RPTID=1021。
+        /// </summary>
+        /// <param name="dataId">消息 DATAID。</param>
+        /// <param name="fromState">切换前状态。</param>
+        /// <param name="toState">切换后状态。</param>
+        /// <param name="trigger">触发来源，例如 RequestOnlineStatus。</param>
+        /// <param name="tryGetVid">VID 映射函数；返回 false 时使用 0 兜底。</param>
+        /// <returns>可用于发送的 S6F11_data。</returns>
+        public static S6F11_data BuildOnlineStateChangedReport(
+            byte dataId,
+            string? fromState,
+            string? toState,
+            string? trigger,
+            Func<string, (bool Found, ushort Vid)>? tryGetVid = null)
+        {
+            // 方法关键节点：按预设模板组装在线状态变更事件。
+            return new S6F11_data
+            {
+                DATAID = dataId,
+                CEID = 1021,    // 在线状态变更事件 CEID
+                Reports = new List<S6F11_report_data>
+                {
+                    new S6F11_report_data
+                    {
+                        RPTID = 1021,
+                        Values = new List<S6F11_parameter_data>
+                        {
+                            CreateParam("FROM_STATE", fromState, tryGetVid),
+                            CreateParam("TO_STATE", toState, tryGetVid),
+                            CreateParam("TRIGGER", trigger, tryGetVid)
+                        }
+                    }
+                }
+            };
+        }
+
+        /// <summary>
         /// 构建单个 S6F11 参数项。使用映射 VID。
         /// </summary>
         private static S6F11_parameter_data CreateParam(

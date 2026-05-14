@@ -169,28 +169,57 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
     /// 请求切换远程在线状态。
     /// 规则：仅当当前为 OnLineLocal 时切换为 OnLineRemote 并返回成功。
     /// </summary>
-    public override Task<OnlineStatusReply> RequestOnlineStatus(NoParams request, ServerCallContext context)
+    public override async Task<OnlineStatusReply> RequestOnlineStatus(NoParams request, ServerCallContext context)
     {
         // if 关键分支：当前处于 OnLineLocal 时允许切换为 OnLineRemote。
         if (_device.IsOnline == DeviceOnlineState.OnLineLocal)
         {
+            var fromState = _device.IsOnline.ToString();
             _device.IsOnline = DeviceOnlineState.OnLineRemote;
+            var toState = _device.IsOnline.ToString();
 
-            return Task.FromResult(new OnlineStatusReply
+            // 方法关键节点：状态切换成功后，按预设模板发送 OnlineStateChanged 的 S6F11（CEID=1021）。
+            var stateChangedData = ActiveReportSxFyFunctions.BuildOnlineStateChangedReport(
+                _secsGemContext.GetNextDataId(),
+                fromState,
+                toState,
+                "RequestOnlineStatus",
+                TryGetVid);
+
+            var sent = await _activeSxFyDispatcher.SendS6F11Async(stateChangedData, context.CancellationToken).ConfigureAwait(false);
+            if (sent)
+            {
+                _logger.LogInformation("Online state changed reported. CEID={CEID}, From={FromState}, To={ToState}", stateChangedData.CEID, fromState, toState);
+            }
+            else
+            {
+                _logger.LogWarning("Online state changed report skipped/failed. CEID={CEID}, From={FromState}, To={ToState}", stateChangedData.CEID, fromState, toState);
+            }
+
+            return new OnlineStatusReply
             {
                 MessageCode = 0,
                 Message = "切换成功，已进入远程在线状态。",
                 Online = true
-            });
+            };
+        }else if (_device.IsOnline == DeviceOnlineState.OnLineRemote)
+        {
+            // if 关键分支：当前已是 OnLineRemote 时返回提示信息。
+            return new OnlineStatusReply
+            {
+                MessageCode = 2,
+                Message = "当前已处于远程在线状态，无需切换。",
+                Online = true
+            };
         }
 
         // 兜底分支：非 OnLineLocal 场景拒绝切换。
-        return Task.FromResult(new OnlineStatusReply
+        return new OnlineStatusReply
         {
             MessageCode = 1,
             Message = "目前为离线状态，禁止切换为远程。",
             Online = _device.IsOnline is DeviceOnlineState.OnLineLocal or DeviceOnlineState.OnLineRemote
-        });
+        };
     }
 
     /// <summary>
