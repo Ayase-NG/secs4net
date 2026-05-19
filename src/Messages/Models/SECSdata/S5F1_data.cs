@@ -16,7 +16,7 @@ namespace SECSdata
         public byte ALCD { get; set; }
 
         /// <summary>
-        /// Alarm ID，报警编号。通常使用无符号整型。
+        /// Alarm ID，报警编号。通常使用无符号整型。停机报警为1，不停机报警为2，报警清除为0
         /// </summary>
         public uint ALID { get; set; }
 

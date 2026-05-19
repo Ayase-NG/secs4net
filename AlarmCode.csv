@@ -1,0 +1,26 @@
+Code,AlarmText,level,Description
+1,The stop button is pressed,1,停止按钮被按下
+3,Mapping read timeout,1,Mapping读取超时
+4,ALN polling timeout,1,ALN轮询超时
+5,Workstation reset initialization timeout,1,魔镜工位复位初始化超时
+6,Robot arm task process timeout,1,机械臂任务过程超时
+7,Status comparison failed,1,魔镜状态比对不通过
+8,The testing mode was changed during the testing process,1,测试过程中测试模式被更改
+9,Emergency stop signal triggered,1,急停信号触发
+10,JEL motor motion response timeout,1,JEL电机运动响应超时
+11,The selection time for receiving the upper computer mode is too long,2,接收上位机模式选择时间过长
+12,The door is opened during automatic operation,1,自动运行中门被打开
+100,JEL equipment emergency stop,1,JEL设备急停
+101,Not in automatic mode when hard start is pressed,1,按下硬启动时不在自动状态
+102,JEL workstation not reset completed when hard start is pressed,1,按下硬启动时JEL工位未复位完成
+151,Waiting for the upper computer to send the test mode timeout,1,等待上位机发送测试模式超时
+161,JEL motor reset alarm not completed,1,JEL电机复位报警未完成
+165,JEL motor enable timeout not completed,1,JEL电机使能超时未完成
+200,TDK equipment emergency stop,1,TDK设备急停
+201,Not in automatic mode when hard start is pressed,1,按下硬启动时不在自动状态
+202,TDK not reset completed when hard start is pressed,1,按下硬启动时TDK未复位完成
+300,Emergency stop of workstation equipment,1,工位设备急停
+301,Not in automatic mode when hard start is pressed,1,按下硬启动时不在自动状态
+302,Failed to reset when pressing hard start,1,按下硬启动时未复位完成
+351,JEL motor motion response timeout,1,JEL电机运动响应超时
+352,JEL motor zeroing timeout,1,JEL电机回零超时

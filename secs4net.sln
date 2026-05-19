@@ -59,9 +59,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SECSbuilder", "src\Messages
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Config", "Config", "{E1D4DF20-48BF-4AA8-99F2-B7BC7E3876DE}"
 	ProjectSection(SolutionItems) = preProject
+		AlarmCode.csv = AlarmCode.csv
 		src\Messages\Config\CEIDS.json = src\Messages\Config\CEIDS.json
 		src\Messages\Config\CommandParameter.csv = src\Messages\Config\CommandParameter.csv
 		SVID.csv = SVID.csv
+		src\Messages\Config\VID.csv = src\Messages\Config\VID.csv
 		src\Messages\Config\消息架构备注.md = src\Messages\Config\消息架构备注.md
 		目前进展.csv = 目前进展.csv
 	EndProjectSection

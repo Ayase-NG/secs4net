@@ -14,7 +14,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
     private readonly ILogger<ReportGrpc> _logger;
     private readonly SecsGemContext _secsGemContext;
     private readonly AlarmStore _alarmStore;
-    private readonly CommandParameterMap _commandParameterMap;
+    private readonly VidMap _vidMap;
     private readonly IActiveSxFyDispatcher _activeSxFyDispatcher;
     private readonly IDevice _device;
 
@@ -22,14 +22,14 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
         ILogger<ReportGrpc> logger,
         SecsGemContext secsGemContext,
         AlarmStore alarmStore,
-        CommandParameterMap commandParameterMap,
+        VidMap vidMap,
         IActiveSxFyDispatcher activeSxFyDispatcher,
         IDevice device)
     {
         _logger = logger;
         _secsGemContext = secsGemContext;
         _alarmStore = alarmStore;
-        _commandParameterMap = commandParameterMap;
+        _vidMap = vidMap;
         _activeSxFyDispatcher = activeSxFyDispatcher;
         _device = device;
     }
@@ -228,7 +228,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
     private (bool Found, ushort Vid) TryGetVid(string cpName)
     {
         // if 关键分支：映射命中则返回对应 VID。
-        if (_commandParameterMap.TryGetVid(cpName, out var vid))
+        if (_vidMap.TryGetVid(cpName, out var vid))
         {
             return (true, vid);
         }

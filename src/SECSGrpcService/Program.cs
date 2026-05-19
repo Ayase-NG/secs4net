@@ -54,20 +54,20 @@ if (!string.IsNullOrWhiteSpace(mysqlConnection))
         options.UseMySql(mysqlConnection, ServerVersion.AutoDetect(mysqlConnection)));
 }
 
-// 关键分支：统一从配置读取命令参数映射文件路径，支持单路径与候选路径列表。
-var commandParameterSection = builder.Configuration.GetSection("CommandParameter");
-var configuredCommandParameterCsv = commandParameterSection.GetValue<string>("CsvPath");
-var commandParameterCsv = configuredCommandParameterCsv;
+// 关键分支：统一从配置读取 VID 映射文件路径，支持单路径与候选路径列表。
+var vidSection = builder.Configuration.GetSection("VID");
+var configuredVidCsv = vidSection.GetValue<string>("CsvPath");
+var vidCsv = configuredVidCsv;
 
-if (string.IsNullOrWhiteSpace(commandParameterCsv))
+if (string.IsNullOrWhiteSpace(vidCsv))
 {
     // 关键分支：若未配置单路径，则按配置中的候选路径依次探测首个存在文件。
-    var candidateRelativePaths = commandParameterSection.GetSection("CandidatePaths").Get<string[]>() ?? Array.Empty<string>();
+    var candidateRelativePaths = vidSection.GetSection("CandidatePaths").Get<string[]>() ?? Array.Empty<string>();
 
     // 关键分支：若配置文件未提供候选项，则保底使用一个默认相对路径。
     if (candidateRelativePaths.Length == 0)
     {
-        candidateRelativePaths = ["src/Messages/Config/CommandParameter.csv"];
+        candidateRelativePaths = ["src/Messages/Config/VID.csv"];
     }
 
     var candidatePaths = candidateRelativePaths
@@ -77,14 +77,14 @@ if (string.IsNullOrWhiteSpace(commandParameterCsv))
             : Path.Combine(builder.Environment.ContentRootPath, p))
         .ToArray();
 
-    commandParameterCsv = candidatePaths.FirstOrDefault(File.Exists)
+    vidCsv = candidatePaths.FirstOrDefault(File.Exists)
         ?? candidatePaths[0];
 }
 
 builder.Services.AddSingleton(sp =>
 {
-    var logger = sp.GetRequiredService<ILogger<CommandParameterMap>>();
-    return CommandParameterMap.LoadFromCsv(commandParameterCsv!, logger);
+    var logger = sp.GetRequiredService<ILogger<VidMap>>();
+    return VidMap.LoadFromCsv(vidCsv!, logger);
 });
 
 builder.Services.AddSingleton<AlarmStore>();
@@ -105,6 +105,7 @@ builder.Services.AddSingleton<IEventEnableStorage>(sp => sp.GetRequiredService<S
 builder.Services.AddSingleton<IPrimaryMessageHandler, CommunicationPrimaryMessageHandler>();
 builder.Services.AddSingleton<IPrimaryMessageHandler, EventReportPrimaryMessageHandler>();
 builder.Services.AddSingleton<IPrimaryMessageHandler, RemoteCommandPrimaryMessageHandler>();
+builder.Services.AddSingleton<IPrimaryMessageHandler, CarrierPrimaryMessageHandler>();
 
 // 注册 SECS PrimaryMessage 持续监听服务（后台服务），与 gRPC 服务并行运行。主要
 builder.Services.AddHostedService<SecsPrimaryMessageListenerService>();

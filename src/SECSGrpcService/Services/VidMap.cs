@@ -1,17 +1,17 @@
 namespace SECSGrpcService.Services;
 
 /// <summary>
-/// 命令参数映射表（CPName -> VID）。
-/// 数据来源：`CommandParameter.csv`。
+/// VID 映射表（CPName -> VID）。
+/// 数据来源：`VID.csv`。
 /// </summary>
-public sealed class CommandParameterMap
+public sealed class VidMap
 {
     private readonly Dictionary<string, ushort> _nameToVid;
 
     /// <summary>
     /// 使用已解析映射初始化。
     /// </summary>
-    public CommandParameterMap(Dictionary<string, ushort> nameToVid)
+    public VidMap(Dictionary<string, ushort> nameToVid)
     {
         _nameToVid = nameToVid;
     }
@@ -32,15 +32,15 @@ public sealed class CommandParameterMap
     /// 从 CSV 文件构建映射实例。
     /// CSV 格式要求前两列分别为：ID,Name。
     /// </summary>
-    public static CommandParameterMap LoadFromCsv(string csvPath, ILogger? logger = null)
+    public static VidMap LoadFromCsv(string csvPath, ILogger? logger = null)
     {
         var map = new Dictionary<string, ushort>(StringComparer.OrdinalIgnoreCase);
 
         // 关键分支：文件不存在时返回空映射。
         if (!File.Exists(csvPath))
         {
-            logger?.LogWarning("CommandParameter.csv not found: {Path}", csvPath);
-            return new CommandParameterMap(map);
+            logger?.LogWarning("VID.csv not found: {Path}", csvPath);
+            return new VidMap(map);
         }
 
         try
@@ -82,6 +82,6 @@ public sealed class CommandParameterMap
             logger?.LogError(ex, "Failed to load command parameter mappings from {Path}", csvPath);
         }
 
-        return new CommandParameterMap(map);
+        return new VidMap(map);
     }
 }

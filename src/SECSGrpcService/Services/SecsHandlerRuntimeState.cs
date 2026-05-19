@@ -15,6 +15,7 @@ public sealed class SecsHandlerRuntimeState : IDevice, IReportStorage, IEventLin
     public List<uint> SlotsList { get; set; } = new();
     public DeviceRunStatus RunStatus { get; set; } = DeviceRunStatus.Unknown;
     public string RECIPEID { get; set; } = string.Empty;
+    public string CurrentLotId { get; set; } = string.Empty;
     public string ModelNumber { get; set; } = "GWM-PW-20260407";
     public string SoftwareRevision { get; set; } = "V20260407";
     public string Status { get; set; } = string.Empty;

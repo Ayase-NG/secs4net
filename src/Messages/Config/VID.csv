@@ -1,4 +1,4 @@
-ID,Name,Category,Format,Description
+VID,Name,Category,Format,Description
 1000,LOTID,wafer,26P12345,晶圆批次编号
 1001,WAFERID,wafer,EX2354FSD32,晶圆编号
 1002,RFID,wafer,RF100001,晶圆盒编号
@@ -11,5 +11,6 @@ ID,Name,Category,Format,Description
 2001,MODE,setting,00,运行模式，一般分为：未设置00，全自动01，半自动02，分拣03
 2XXX,参数名,setting,123,配方中各参数名及对应值，后续补充
 3000,STATUS,device,unknown,设备状态，一般分为unknown，initializing，Idel，Running，Jam
-3001,COMMUNICATIONS,device,Online,设备通信状态，一般分为远程在线，远程离线，本地离线。remote online，remote offline，local offline
-3002,WORKSTATION,device,Edge,工位状态查询
+3001,FROM_STATE,device,OnLineLocal,设备原在线状态
+3002,TO_STATE,device,OnLineRemote,设备目标在线状态
+3003,WORKSTATION,device,Edge,工位状态查询

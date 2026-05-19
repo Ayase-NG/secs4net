@@ -348,6 +348,7 @@ internal class TestDevice : IDevice
     public DeviceRunStatus RunStatus { get; set; }
 
     public string RECIPEID { get; set; }
+    public string CurrentLotId { get; set; }
 
     public string ModelNumber { get; set; }
     public string SoftwareRevision { get; set; }
@@ -359,6 +360,7 @@ internal class TestDevice : IDevice
         SlotsList = new List<uint>();
         RunStatus = DeviceRunStatus.Idel;
         RECIPEID = string.Empty;
+        CurrentLotId = string.Empty;
         ModelNumber = "GWM-PW-20260407";
         SoftwareRevision = "V20260407";
     }
