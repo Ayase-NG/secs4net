@@ -24,6 +24,9 @@ service EFEM {
   // 配方选择。
   rpc ProcessProgramSelect (RecipeMessage) returns (ControlReply);
 
+  // 槽位选择（S3F17 链路）。
+  rpc SlotMapSelect (SlotMapSelectMessage) returns (ControlReply);
+
   // 获取状态
   rpc StatusReport (NoParams) returns (StatusReply);
 }

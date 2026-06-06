@@ -14,14 +14,16 @@ namespace SECSGrpcService.Services
     {
         private readonly ILogger<SecsEfemGrpc> _logger;
         private readonly NacosGrpcResolver _nacosGrpcResolver;
+        private readonly IConfiguration _configuration;
 
         /// <summary>
         /// 构造 gRPC 客户端封装对象。
         /// </summary>
-        public SecsEfemGrpc(ILogger<SecsEfemGrpc> logger, NacosGrpcResolver nacosGrpcResolver)
+        public SecsEfemGrpc(ILogger<SecsEfemGrpc> logger, NacosGrpcResolver nacosGrpcResolver, IConfiguration configuration)
         {
             _logger = logger;
             _nacosGrpcResolver = nacosGrpcResolver;
+            _configuration = configuration;
         }
 
         /// <summary>
@@ -105,6 +107,22 @@ namespace SECSGrpcService.Services
         }
 
         /// <summary>
+        /// 从 Nacos 动态发现服务实例后发送 SlotMapSelect。
+        /// </summary>
+        public async Task SendSlotMapSelectToServiceAsync(
+            string serviceName,
+            string groupName,
+            IEnumerable<string>? clusters,
+            bool useHttps,
+            SlotMapSelectMessage slotMapMessage,
+            IEnumerable<string>? fallbackAddresses = null,
+            CancellationToken cancellationToken = default)
+        {
+            var addresses = await _nacosGrpcResolver.ResolveAddressesAsync(serviceName, groupName, clusters, useHttps, fallbackAddresses, cancellationToken);
+            await SendSlotMapSelectToClientsAsync(addresses, slotMapMessage, cancellationToken);
+        }
+
+        /// <summary>
         /// 从 Nacos 动态发现服务实例后调用 StatusReport（无参）并返回首个成功结果。
         /// </summary>
         public async Task<StatusReply?> GetStatusFromServiceAsync(
@@ -117,6 +135,38 @@ namespace SECSGrpcService.Services
         {
             var addresses = await _nacosGrpcResolver.ResolveAddressesAsync(serviceName, groupName, clusters, useHttps, fallbackAddresses, cancellationToken);
             return await GetStatusFromClientsAsync(addresses, cancellationToken);
+        }
+
+        /// <summary>
+        /// 对指定远端地址列表发送 SlotMapSelect。
+        /// </summary>
+        public async Task SendSlotMapSelectToClientsAsync(IEnumerable<string> targetAddresses, SlotMapSelectMessage slotMapMessage, CancellationToken cancellationToken = default)
+        {
+            if (targetAddresses == null) return;
+
+            foreach (var address in targetAddresses)
+            {
+                if (string.IsNullOrWhiteSpace(address)) continue;
+
+                try
+                {
+                    using var channel = GrpcChannel.ForAddress(address);
+                    var client = new global::SECSGrpcService.EFEM.EFEMClient(channel.CreateCallInvoker());
+                    var call = client.SlotMapSelectAsync(slotMapMessage, cancellationToken: CreateLinkedToken(cancellationToken));
+                    var reply = await call.ResponseAsync.ConfigureAwait(false);
+                    _logger.LogInformation("SlotMapSelect -> {Address} returned {Code}: {Msg}", address, reply.MessageCode, reply.Message);
+                }
+                catch (RpcException rex)
+                {
+                    _logger.LogError(rex, "SlotMapSelect RPC to {Address} failed", address);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send SlotMapSelect to {Address}", address);
+                }
+
+                if (cancellationToken.IsCancellationRequested) break;
+            }
         }
 
         /// <summary>
@@ -135,7 +185,7 @@ namespace SECSGrpcService.Services
                     using var channel = GrpcChannel.ForAddress(address);
                     var client = new global::SECSGrpcService.EFEM.EFEMClient(channel.CreateCallInvoker());
 
-                    var startCall = client.StartMeasurementAsync(new NoParams(), cancellationToken: cancellationToken);
+                    var startCall = client.StartMeasurementAsync(new NoParams(), cancellationToken: CreateLinkedToken(cancellationToken));
                     var startReply = await startCall.ResponseAsync.ConfigureAwait(false);
                     _logger.LogInformation("StartMeasurement -> {Address} returned {Code}: {Msg}", address, startReply.MessageCode, startReply.Message);
                 }
@@ -167,7 +217,7 @@ namespace SECSGrpcService.Services
                 {
                     using var channel = GrpcChannel.ForAddress(address);
                     var client = new global::SECSGrpcService.EFEM.EFEMClient(channel.CreateCallInvoker());
-                    var call = client.StopMeasurementAsync(waferMessage, cancellationToken: cancellationToken);
+                    var call = client.StopMeasurementAsync(waferMessage, cancellationToken: CreateLinkedToken(cancellationToken));
                     var reply = await call.ResponseAsync.ConfigureAwait(false);
                     _logger.LogInformation("StopMeasurement -> {Address} returned {Code}: {Msg}", address, reply.MessageCode, reply.Message);
                 }
@@ -199,7 +249,7 @@ namespace SECSGrpcService.Services
                 {
                     using var channel = GrpcChannel.ForAddress(address);
                     var client = new global::SECSGrpcService.EFEM.EFEMClient(channel.CreateCallInvoker());
-                    var call = client.PauseMeasurementAsync(waferMessage, cancellationToken: cancellationToken);
+                    var call = client.PauseMeasurementAsync(waferMessage, cancellationToken: CreateLinkedToken(cancellationToken));
                     var reply = await call.ResponseAsync.ConfigureAwait(false);
                     _logger.LogInformation("PauseMeasurement -> {Address} returned {Code}: {Msg}", address, reply.MessageCode, reply.Message);
                 }
@@ -231,7 +281,7 @@ namespace SECSGrpcService.Services
                 {
                     using var channel = GrpcChannel.ForAddress(address);
                     var client = new global::SECSGrpcService.EFEM.EFEMClient(channel.CreateCallInvoker());
-                    var call = client.ResumeMeasurementAsync(waferMessage, cancellationToken: cancellationToken);
+                    var call = client.ResumeMeasurementAsync(waferMessage, cancellationToken: CreateLinkedToken(cancellationToken));
                     var reply = await call.ResponseAsync.ConfigureAwait(false);
                     _logger.LogInformation("ResumeMeasurement -> {Address} returned {Code}: {Msg}", address, reply.MessageCode, reply.Message);
                 }
@@ -263,7 +313,7 @@ namespace SECSGrpcService.Services
                 {
                     using var channel = GrpcChannel.ForAddress(address);
                     var client = new global::SECSGrpcService.EFEM.EFEMClient(channel.CreateCallInvoker());
-                    var call = client.ProcessProgramSelectAsync(recipeMessage, cancellationToken: cancellationToken);
+                    var call = client.ProcessProgramSelectAsync(recipeMessage, cancellationToken: CreateLinkedToken(cancellationToken));
                     var reply = await call.ResponseAsync.ConfigureAwait(false);
                     _logger.LogInformation("ProcessProgramSelect -> {Address} returned {Code}: {Msg}", address, reply.MessageCode, reply.Message);
                 }
@@ -295,7 +345,7 @@ namespace SECSGrpcService.Services
                 {
                     using var channel = GrpcChannel.ForAddress(address);
                     var client = new global::SECSGrpcService.EFEM.EFEMClient(channel.CreateCallInvoker());
-                    var call = client.StatusReportAsync(new NoParams(), cancellationToken: cancellationToken);
+                    var call = client.StatusReportAsync(new NoParams(), cancellationToken: CreateLinkedToken(cancellationToken));
                     var reply = await call.ResponseAsync.ConfigureAwait(false);
                     _logger.LogInformation("StatusReport -> {Address} returned {Code}: {Msg}, Mode={Mode}, RunStatus={RunStatus}", address, reply.MessageCode, reply.Message, reply.Mode, reply.RunStatus);
                     return reply;
@@ -313,6 +363,17 @@ namespace SECSGrpcService.Services
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// 创建带超时的调用令牌，超时值来自配置 SecsDispatch:Grpc:CallTimeoutMs。
+        /// </summary>
+        private CancellationToken CreateLinkedToken(CancellationToken outerToken)
+        {
+            var timeoutMs = Math.Max(100, _configuration.GetValue<int>("SecsDispatch:Grpc:CallTimeoutMs", 5000));
+            var cts = CancellationTokenSource.CreateLinkedTokenSource(outerToken);
+            cts.CancelAfter(timeoutMs);
+            return cts.Token;
         }
     }
 }

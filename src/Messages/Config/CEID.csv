@@ -1,0 +1,10 @@
+CEID,EventName,Category,Description
+1001,WaferResultReported,Report,单片检测结果上报事件
+1002,MappingCompleted,Report,载具Mapping完成事件
+1003,LotCompleted,Report,整盒晶圆检测完成事件
+1004,OnlineStateChanged,State,设备在线状态变化事件
+1005,AlarmRaised,Alarm,报警发生事件
+1006,AlarmCleared,Alarm,报警恢复事件
+1007,EquipmentStateChanged,State,设备运行状态变化事件
+1008,LotAborted,Exception,批次中止事件
+1010,CarrierRemoved,Report,花篮取走事件

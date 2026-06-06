@@ -1,0 +1,31 @@
+-- 建库（可按设备/产线命名）
+CREATE DATABASE IF NOT EXISTS `secs`
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_general_ci;
+
+USE `secs`;
+
+-- 1) 报警历史表
+CREATE TABLE IF NOT EXISTS `alarm_history` (
+  `Id` BIGINT NOT NULL AUTO_INCREMENT,
+  `Source` VARCHAR(128) NOT NULL,
+  `AlarmId` INT UNSIGNED NOT NULL,
+  `AlarmCode` VARBINARY(256) NULL,
+  `AlarmText` VARCHAR(1024) NULL,
+  `Severity` INT NOT NULL,
+  `OccurredAtUnixMs` BIGINT NOT NULL,
+  `CreatedAtUtc` DATETIME(6) NOT NULL,
+  PRIMARY KEY (`Id`),
+  KEY `IX_alarm_history_Source_AlarmId_OccurredAtUnixMs` (`Source`, `AlarmId`, `OccurredAtUnixMs`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 2) SECS交互追溯表
+CREATE TABLE IF NOT EXISTS `secs_interaction_history` (
+  `Id` BIGINT NOT NULL AUTO_INCREMENT,
+  `SxFy` VARCHAR(32) NOT NULL,
+  `SecsMessage` LONGTEXT NOT NULL,
+  `Hcack` TINYINT UNSIGNED NULL,
+  `CreatedAtUtc` DATETIME(6) NOT NULL,
+  PRIMARY KEY (`Id`),
+  KEY `IX_secs_interaction_history_SxFy_CreatedAtUtc` (`SxFy`, `CreatedAtUtc`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

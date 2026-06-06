@@ -16,5 +16,13 @@ namespace SECShandler.Interfaces
         /// <param name="cancellationToken">取消令牌。</param>
         /// <returns>发送结果，true=发送成功，false=发送失败或会话不可用。</returns>
         Task<bool> SendS6F11Async(S6F11_data data, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// 尝试补发缓存中的 S6F11 数据。
+        /// </summary>
+        /// <param name="maxCount">本次最大补发条数。</param>
+        /// <param name="cancellationToken">取消令牌。</param>
+        /// <returns>实际补发成功条数。</returns>
+        Task<int> FlushS6F11SpoolAsync(int maxCount, CancellationToken cancellationToken);
     }
 }

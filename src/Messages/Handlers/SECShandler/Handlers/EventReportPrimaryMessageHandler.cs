@@ -75,7 +75,7 @@ namespace SECShandler.Handlers
                     await EventReportSxFyFunctions.HandleS2F35ReplyAsync(primaryMessage, _reportStorage, _eventLinkStorage);
                     break;
                 case (2, 37):
-                    await EventReportSxFyFunctions.HandleS2F37ReplyAsync(primaryMessage, _eventLinkStorage, _eventEnableStorage);
+                    await EventReportSxFyFunctions.HandleS2F37ReplyAsync(primaryMessage, _eventLinkStorage, _eventEnableStorage, _reportStorage);
                     break;
             }
         }

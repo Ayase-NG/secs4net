@@ -48,6 +48,7 @@ public partial class Form1 : Form
         public bool ContainsReport(uint rptId) => _reports.ContainsKey(rptId);
         public void ClearAllReports() => _reports.Clear();
         public void RemoveReport(uint rptId) => _reports.Remove(rptId);
+        public IReadOnlyList<uint> GetVidsForReport(uint rptId) => _reports.TryGetValue(rptId, out var v) ? v : Array.Empty<uint>();
     }
 
     private class InMemoryEventLinkStorage : IEventLinkStorage
@@ -121,11 +122,13 @@ public partial class Form1 : Form
         var reportStorage = new InMemoryReportStorage();
         var eventLinkStorage = new InMemoryEventLinkStorage();
         var eventEnableStorage = new InMemoryEventEnableStorage();
+        var measurementDispatcher = new NoopMeasurementDispatcher();
 
         var primaryHandlers = new List<IPrimaryMessageHandler>
         {
             new CommunicationPrimaryMessageHandler(testDevice),
             new EventReportPrimaryMessageHandler(reportStorage, eventLinkStorage, eventEnableStorage, testDevice),
+            new CarrierPrimaryMessageHandler(testDevice, measurementDispatcher),
         };
 
         var routes = new Dictionary<(int S, int F), IPrimaryMessageHandler>();
@@ -164,7 +167,7 @@ public partial class Form1 : Form
                             await EventReportSxFyFunctions.HandleS2F35ReplyAsync(primaryMessage, reportStorage, eventLinkStorage);
                             break;
                         case (2, 37):
-                            await EventReportSxFyFunctions.HandleS2F37ReplyAsync(primaryMessage, eventLinkStorage, eventEnableStorage);
+                            await EventReportSxFyFunctions.HandleS2F37ReplyAsync(primaryMessage, eventLinkStorage, eventEnableStorage, reportStorage);
                             break;
 
                         default:

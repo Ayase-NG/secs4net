@@ -17,7 +17,11 @@ namespace SECShandler.Functions
         /// </summary>
         /// <param name="primary">PrimaryMessage 包装对象。</param>
         /// <param name="device">设备运行态对象。</param>
-        public static async Task HandleS3F17Async(PrimaryMessageWrapper primary, IDevice device)
+        public static async Task HandleS3F17Async(
+            PrimaryMessageWrapper primary,
+            IDevice device,
+            IMeasurementDispatcher? measurementDispatcher,
+            CancellationToken cancellationToken)
         {
             // 方法关键节点：先解析 S3F17 请求数据。
             S3F17_data data;
@@ -47,6 +51,26 @@ namespace SECShandler.Functions
             if (data.SlotMap.Count > 0)
             {
                 device.SlotsList = data.SlotMap;
+            }
+
+            // 方法关键节点：S3F17 解析成功后，触发独立的 gRPC 槽位选择链路。
+            if (measurementDispatcher is not null)
+            {
+                try
+                {
+                    await measurementDispatcher.DispatchSlotMapSelectAsync(data, cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    // if 关键分支：分发失败时返回 NAK，避免 Host 误判为成功。
+                    Console.WriteLine($"S3F17 grpc dispatch error: {ex.Message}");
+                    if (primary.PrimaryMessage.ReplyExpected)
+                    {
+                        var nak = S3F18_builder.Build(1);
+                        await primary.TryReplyAsync(nak, CancellationToken.None);
+                    }
+                    return;
+                }
             }
 
             // 方法关键分支：如果主消息期望回复，则发送 S3F18 ACK（0 表示接受，1 表示拒绝）。

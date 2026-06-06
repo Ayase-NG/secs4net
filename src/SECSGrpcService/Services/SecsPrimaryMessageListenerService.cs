@@ -14,6 +14,7 @@ public sealed class SecsPrimaryMessageListenerService : BackgroundService
     private readonly IConfiguration _configuration;
     private readonly IReadOnlyDictionary<(int S, int F), IPrimaryMessageHandler> _handlerRoutes;
     private readonly SecsGemContext _secsGemContext;
+    private readonly ISecsInteractionHistoryStore _interactionHistoryStore;
     private HsmsConnection? _connector;
     private SecsGem? _secsGem;
 
@@ -21,12 +22,14 @@ public sealed class SecsPrimaryMessageListenerService : BackgroundService
         ILogger<SecsPrimaryMessageListenerService> logger,
         IConfiguration configuration,
         IEnumerable<IPrimaryMessageHandler> handlers,
-        SecsGemContext secsGemContext)
+        SecsGemContext secsGemContext,
+        ISecsInteractionHistoryStore interactionHistoryStore)
     {
         _logger = logger;
         _configuration = configuration;
         _handlerRoutes = BuildRoutes(handlers);
         _secsGemContext = secsGemContext;
+        _interactionHistoryStore = interactionHistoryStore;
     }
 
     /// <summary>
@@ -92,6 +95,9 @@ public sealed class SecsPrimaryMessageListenerService : BackgroundService
                 _logger.LogInformation("收到 PrimaryMessage: S{S}F{F}, ReplyExpected={ReplyExpected}", msg.S, msg.F, msg.ReplyExpected);
                 Console.WriteLine($"进入SECS持续监听，收到 PrimaryMessage: S{msg.S}F{msg.F}");
 
+                // 方法关键节点：入站关键消息先做追溯落库，便于生产问题追踪。
+                await SaveInboundInteractionIfKeyMessageAsync(msg, stoppingToken).ConfigureAwait(false);
+
                 try
                 {
                     await DispatchPrimaryMessageAsync(_secsGem, primaryMessage, stoppingToken);
@@ -148,6 +154,47 @@ public sealed class SecsPrimaryMessageListenerService : BackgroundService
 
         // 方法关键节点：其他消息权限由各 Handler/SxFyFunction 负责，并向 Host 返回明确应答。
         await handler.HandleAsync(secsGem, primaryMessage, cancellationToken);
+    }
+
+    /// <summary>
+    /// 对关键入站消息做最小追溯落库。
+    /// </summary>
+    private async Task SaveInboundInteractionIfKeyMessageAsync(SecsMessage msg, CancellationToken cancellationToken)
+    {
+        if (!IsKeyInboundMessage(msg.S, msg.F))
+        {
+            return;
+        }
+
+        try
+        {
+            await _interactionHistoryStore
+                .SaveInteractionAsync($"S{msg.S}F{msg.F}", msg.ToString(), null, DateTime.UtcNow, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to persist inbound interaction. S{S}F{F}", msg.S, msg.F);
+        }
+    }
+
+    /// <summary>
+    /// 关键入站消息白名单（P0 最小集合）。
+    /// </summary>
+    private static bool IsKeyInboundMessage(int s, int f)
+    {
+        return (s, f) is
+            (1, 13) or  // 建连请求
+            (2, 31) or  // 时间同步
+            (2, 41) or  // 远程命令（含 PPSELECT/START）
+            (3, 17) or  // LOT+SlotMap
+            (14, 9) or  // Create Control Job
+            (16, 15) or // Create Process Job
+            (2, 33) or  // Define Report
+            (2, 35) or  // Link Event Report
+            (2, 37) or  // Enable/Disable Event
+            (5, 3) or   // Enable/Disable Alarm
+            (5, 5);     // List Alarm
     }
 
     // handlers全进程统一，在service中build时就会将自身的SF注册进SupportedMessages中。

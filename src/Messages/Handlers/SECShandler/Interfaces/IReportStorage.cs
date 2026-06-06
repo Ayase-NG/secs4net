@@ -33,5 +33,10 @@ namespace SECShandler.Interfaces
         /// 检查指定 RPTID 是否已经定义。
         /// </summary>
         bool ContainsReport(uint rptId);
+
+        /// <summary>
+        /// 获取指定 RPTID 下已定义的 VID 列表。
+        /// </summary>
+        IReadOnlyList<uint> GetVidsForReport(uint rptId);
     }
 }

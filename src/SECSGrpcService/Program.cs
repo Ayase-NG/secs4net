@@ -87,8 +87,37 @@ builder.Services.AddSingleton(sp =>
     return VidMap.LoadFromCsv(vidCsv!, logger);
 });
 
+// 关键分支：统一从配置读取 CEID 映射文件路径，支持单路径与候选路径列表。
+var ceidSection = builder.Configuration.GetSection("CEID");
+var configuredCeidCsv = ceidSection.GetValue<string>("CsvPath");
+var ceidCsv = configuredCeidCsv;
+
+if (string.IsNullOrWhiteSpace(ceidCsv))
+{
+    var candidateRelativePaths = ceidSection.GetSection("CandidatePaths").Get<string[]>() ?? Array.Empty<string>();
+    if (candidateRelativePaths.Length == 0)
+    {
+        candidateRelativePaths = ["src/Messages/Config/CEID.csv"];
+    }
+
+    var candidatePaths = candidateRelativePaths
+        .Where(p => !string.IsNullOrWhiteSpace(p))
+        .Select(p => Path.IsPathRooted(p) ? p : Path.Combine(builder.Environment.ContentRootPath, p))
+        .ToArray();
+
+    ceidCsv = candidatePaths.FirstOrDefault(File.Exists)
+        ?? candidatePaths[0];
+}
+
+builder.Services.AddSingleton(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<CeidMap>>();
+    return CeidMap.LoadFromCsv(ceidCsv!, logger);
+});
+
 builder.Services.AddSingleton<AlarmStore>();
 builder.Services.AddSingleton<ISecsInteractionHistoryStore, RemoteCommandAckHistoryStore>();
+builder.Services.AddSingleton<IIdempotencyGuard, InMemoryIdempotencyGuard>();
 builder.Services.AddSingleton<NacosGrpcResolver>();
 builder.Services.AddSingleton<SecsGemContext>();
 builder.Services.AddSingleton<SecsEfemGrpc>();
@@ -101,14 +130,22 @@ builder.Services.AddSingleton<IDevice>(sp => sp.GetRequiredService<SecsHandlerRu
 builder.Services.AddSingleton<IReportStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
 builder.Services.AddSingleton<IEventLinkStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
 builder.Services.AddSingleton<IEventEnableStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
+builder.Services.AddSingleton<IAlarmEnableStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
+builder.Services.AddSingleton<IAlarmStateStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
+builder.Services.AddSingleton<ITimeSyncStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
+builder.Services.AddSingleton<IS6F11SpoolStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
+builder.Services.AddSingleton<IPortContextStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
 
 builder.Services.AddSingleton<IPrimaryMessageHandler, CommunicationPrimaryMessageHandler>();
 builder.Services.AddSingleton<IPrimaryMessageHandler, EventReportPrimaryMessageHandler>();
 builder.Services.AddSingleton<IPrimaryMessageHandler, RemoteCommandPrimaryMessageHandler>();
 builder.Services.AddSingleton<IPrimaryMessageHandler, CarrierPrimaryMessageHandler>();
+builder.Services.AddSingleton<IPrimaryMessageHandler, AlarmPrimaryMessageHandler>();
+builder.Services.AddSingleton<IPrimaryMessageHandler, TimeSyncPrimaryMessageHandler>();
 
 // 注册 SECS PrimaryMessage 持续监听服务（后台服务），与 gRPC 服务并行运行。主要
 builder.Services.AddHostedService<SecsPrimaryMessageListenerService>();
+builder.Services.AddHostedService<S6F11SpoolReplayService>();
 //builder.Services.AddHostedService<DeviceStatusRefreshService>();
 
 var app = builder.Build();

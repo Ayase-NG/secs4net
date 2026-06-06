@@ -17,8 +17,8 @@ namespace SECShandler.Functions
     /// </summary>
     public static class EventReportSxFyFunctions
     {
-        // 方法关键节点：缓存 SVID.csv 映射，避免每次 S1F3 都重复读盘。
-        private static readonly Lazy<Dictionary<uint, SvidMapRow>> SvidMap = new(() => LoadSvidMap("SVID.csv"));
+        // 方法关键节点：缓存 SVID/VID 映射，避免每次 S1F3 都重复读盘。
+        private static readonly Lazy<Dictionary<uint, SvidMapRow>> SvidMap = new(LoadSvidMapFromCandidates);
 
         // 方法关键节点：保证 PlcClient 的订阅初始化只执行一次。
         private static int _plcSubscriptionStarted;
@@ -192,7 +192,8 @@ namespace SECShandler.Functions
         public static async Task HandleS2F37ReplyAsync(
             PrimaryMessageWrapper primary,
             IEventLinkStorage eventLinkStorage,
-            IEventEnableStorage eventEnableStorage)
+            IEventEnableStorage eventEnableStorage,
+            IReportStorage reportStorage)
         {
             var primaryMsg = primary.PrimaryMessage;
             S2F37_data data;
@@ -237,7 +238,48 @@ namespace SECShandler.Functions
                 return;
             }
 
+            // 方法关键节点：启用成功后打印当前生效事件映射（CEID -> RPTID -> VID），便于现场快速确认配置。
+            if (eac == 0)
+            {
+                PrintEnabledEventMappings(data, eventLinkStorage, eventEnableStorage, reportStorage);
+            }
+
             await primary.TryReplyAsync(S2F38_builder.Build(eac));
+        }
+
+        private static void PrintEnabledEventMappings(
+            S2F37_data data,
+            IEventLinkStorage eventLinkStorage,
+            IEventEnableStorage eventEnableStorage,
+            IReportStorage reportStorage)
+        {
+            IEnumerable<uint> ceidsToPrint = data.IsAllEvents
+                ? eventEnableStorage.GetAllEnabledEvents()
+                : data.CEIDList;
+
+            Console.WriteLine("[S2F37] Enabled event mapping snapshot start");
+
+            foreach (var ceid in ceidsToPrint.Distinct().OrderBy(x => x))
+            {
+                var rptIds = eventLinkStorage.GetRptIdsForCeid(ceid);
+                if (rptIds is null || rptIds.Count == 0)
+                {
+                    Console.WriteLine($"[S2F37] CEID={ceid} (CEID) -> no linked RPTID");
+                    continue;
+                }
+
+                foreach (var rptId in rptIds.Distinct().OrderBy(x => x))
+                {
+                    var vids = reportStorage.GetVidsForReport(rptId);
+                    var vidText = vids.Count > 0
+                        ? string.Join(",", vids.OrderBy(x => x).Select(v => $"{v}(VID)"))
+                        : "<none>";
+
+                    Console.WriteLine($"[S2F37] CEID={ceid}(CEID) -> RPTID={rptId}(RPTID) -> {vidText}");
+                }
+            }
+
+            Console.WriteLine("[S2F37] Enabled event mapping snapshot end");
         }
 
         /// <summary>
@@ -463,8 +505,12 @@ namespace SECShandler.Functions
                     return true;
                 }
 
-                // 兼容分支：旧 CSV 未配置 SourceType 时，仍按 RECIPEID 走设备属性源。
-                return string.Equals(row.Name, "RECIPEID", StringComparison.OrdinalIgnoreCase);
+                // 兼容分支：旧 CSV 未配置 SourceType 时，按已知设备属性项走属性源。
+                return string.Equals(row.Name, "RECIPEID", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(row.Name, "ONLINE_STATE", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(row.Name, "ISONLINE", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(row.Name, "MODE", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(row.Name, "RUN_MODE", StringComparison.OrdinalIgnoreCase);
             }
 
             public Task<Dictionary<uint, string>> ReadBatchAsync(
@@ -480,6 +526,16 @@ namespace SECShandler.Functions
                     if (string.Equals(row.Name, "RECIPEID", StringComparison.OrdinalIgnoreCase))
                     {
                         result[svid] = context.Device.RECIPEID ?? string.Empty;
+                    }
+                    else if (string.Equals(row.Name, "ONLINE_STATE", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(row.Name, "ISONLINE", StringComparison.OrdinalIgnoreCase))
+                    {
+                        result[svid] = context.Device.IsOnline.ToString();
+                    }
+                    else if (string.Equals(row.Name, "MODE", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(row.Name, "RUN_MODE", StringComparison.OrdinalIgnoreCase))
+                    {
+                        result[svid] = context.Device.Mode ?? string.Empty;
                     }
                     else
                     {
@@ -652,6 +708,15 @@ namespace SECShandler.Functions
                 return "Property";
             }
 
+            // 兼容分支：在线状态与运行模式按设备属性读取。
+            if (string.Equals(name, "ONLINE_STATE", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(name, "ISONLINE", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(name, "MODE", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(name, "RUN_MODE", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Property";
+            }
+
             // 默认分支：其余项默认归类为 PLC。
             return "PLC";
         }
@@ -682,8 +747,9 @@ namespace SECShandler.Functions
 
                 var line = raw.Trim();
 
-                // if 关键分支：跳过表头。
-                if (line.StartsWith("SVID,", StringComparison.OrdinalIgnoreCase))
+                // if 关键分支：跳过表头（兼容 SVID.csv 与 VID.csv）。
+                if (line.StartsWith("SVID,", StringComparison.OrdinalIgnoreCase)
+                    || line.StartsWith("VID,", StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -704,25 +770,50 @@ namespace SECShandler.Functions
 
                 var name = parts[1].Trim();
 
-                // if 关键分支：HOLDING 无法解析时跳过。
-                if (!ushort.TryParse(parts[2].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var holding))
-                {
-                    continue;
-                }
+                // 兼容分支：SVID.csv 第3列是 HOLDING；VID.csv 第3列是 Category（非数字）。
+                var col3 = parts[2].Trim();
+                var hasHolding = ushort.TryParse(col3, NumberStyles.Integer, CultureInfo.InvariantCulture, out var holding);
 
-                // if 关键分支：优先读取第4列 SourceType；旧格式下该列可能是 DESCRIPTION，此时回退推断。
-                var sourceTypeText = parts.Length >= 4 ? parts[3].Trim() : string.Empty;
+                // if 关键分支：SVID.csv 优先读取第4列 SourceType；VID.csv 走名称推断。
+                var sourceTypeText = hasHolding && parts.Length >= 4 ? parts[3].Trim() : string.Empty;
                 var sourceType = NormalizeSourceType(sourceTypeText, name);
 
                 map[svid] = new SvidMapRow
                 {
                     Name = name,
-                    HoldingAddress = holding,
+                    HoldingAddress = hasHolding ? holding : (ushort)0,
                     SourceType = sourceType
                 };
             }
 
             return map;
+        }
+
+        /// <summary>
+        /// 按候选路径加载 SVID/VID 映射，优先 SVID.csv，缺失时回退到 VID.csv。
+        /// </summary>
+        private static Dictionary<uint, SvidMapRow> LoadSvidMapFromCandidates()
+        {
+            var candidates = new[]
+            {
+                "SVID.csv",
+                "VID.csv",
+                Path.Combine("src", "Messages", "Config", "SVID.csv"),
+                Path.Combine("src", "Messages", "Config", "VID.csv"),
+                Path.Combine("..", "Messages", "Config", "SVID.csv"),
+                Path.Combine("..", "Messages", "Config", "VID.csv")
+            };
+
+            foreach (var path in candidates)
+            {
+                var map = LoadSvidMap(path);
+                if (map.Count > 0)
+                {
+                    return map;
+                }
+            }
+
+            return new Dictionary<uint, SvidMapRow>();
         }
     }
 }

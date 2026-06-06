@@ -30,7 +30,7 @@ namespace SECShandler.Functions
             return new S6F11_data
             {
                 DATAID = dataId,
-                CEID = 1007,
+                CEID = 1002,
                 Reports = new List<S6F11_report_data>
                 {
                     new S6F11_report_data
@@ -49,12 +49,46 @@ namespace SECShandler.Functions
         }
 
         /// <summary>
+        /// 构建通用事件上报场景的 S6F11 数据。
+        /// 由上层传入 CEID/RPTID 与参数键值对。
+        /// </summary>
+        public static S6F11_data BuildGenericEventReport(
+            byte dataId,
+            uint ceid,
+            uint rptId,
+            IEnumerable<KeyValuePair<string, string>>? parameters,
+            Func<string, (bool Found, ushort Vid)>? tryGetVid = null)
+        {
+            var values = new List<S6F11_parameter_data>();
+            if (parameters is not null)
+            {
+                foreach (var kv in parameters)
+                {
+                    values.Add(CreateParam(kv.Key, kv.Value, tryGetVid));
+                }
+            }
+
+            return new S6F11_data
+            {
+                DATAID = dataId,
+                CEID = ceid,
+                Reports = new List<S6F11_report_data>
+                {
+                    new S6F11_report_data
+                    {
+                        RPTID = rptId,
+                        Values = values
+                    }
+                }
+            };
+        }
+
+        /// <summary>
         /// 构建晶圆结果场景的 S6F11 数据。
         /// </summary>
         /// <param name="dataId">消息 DATAID。</param>
         /// <param name="waferId">晶圆 ID。</param>
         /// <param name="lotId">批次号。</param>
-        /// <param name="ppid">配方 ID。</param>
         /// <param name="slotId">槽位号。</param>
         /// <param name="result">检测结果。</param>
         /// <param name="tryGetVid">VID 映射函数；返回 false 时使用 0 兜底。</param>
@@ -63,7 +97,6 @@ namespace SECShandler.Functions
             byte dataId,
             string? waferId,
             string? lotId,
-            string? ppid,
             string? slotId,
             string? result,
             Func<string, (bool Found, ushort Vid)>? tryGetVid = null)
@@ -82,7 +115,6 @@ namespace SECShandler.Functions
                         {
                             CreateParam("WAFERID", waferId, tryGetVid),
                             CreateParam("LOTID", lotId, tryGetVid),
-                            CreateParam("PPID", ppid, tryGetVid),
                             CreateParam("SLOTID", slotId, tryGetVid),
                             CreateParam("RESULT", result, tryGetVid)
                         }
@@ -92,8 +124,39 @@ namespace SECShandler.Functions
         }
 
         /// <summary>
+        /// 构建整盒晶圆检测完成场景的 S6F11 数据。
+        /// 预设模板：CEID=1008，RPTID=1008（短期最小实现）。
+        /// </summary>
+        public static S6F11_data BuildLotCompletedReport(
+            byte dataId,
+            string? portId,
+            string? lotId,
+            string? status,
+            Func<string, (bool Found, ushort Vid)>? tryGetVid = null)
+        {
+            return new S6F11_data
+            {
+                DATAID = dataId,
+                CEID = 1003,
+                Reports = new List<S6F11_report_data>
+                {
+                    new S6F11_report_data
+                    {
+                        RPTID = 1008,
+                        Values = new List<S6F11_parameter_data>
+                        {
+                            CreateParam("PORTID", portId, tryGetVid),
+                            CreateParam("LOTID", lotId, tryGetVid),
+                            CreateParam("STATUS", status, tryGetVid)
+                        }
+                    }
+                }
+            };
+        }
+
+        /// <summary>
         /// 构建在线状态变更场景的 S6F11 数据。
-        /// 预设模板：CEID=1021（OnlineStateChanged），RPTID=1021。
+        /// 预设模板：CEID=1004（OnlineStateChanged），RPTID=1004。
         /// </summary>
         /// <param name="dataId">消息 DATAID。</param>
         /// <param name="fromState">切换前状态。</param>
@@ -112,12 +175,12 @@ namespace SECShandler.Functions
             return new S6F11_data
             {
                 DATAID = dataId,
-                CEID = 1021,    // 在线状态变更事件 CEID
+                CEID = 1004,    // 在线状态变更事件 CEID
                 Reports = new List<S6F11_report_data>
                 {
                     new S6F11_report_data
                     {
-                        RPTID = 1021,
+                        RPTID = 1004,
                         Values = new List<S6F11_parameter_data>
                         {
                             CreateParam("FROM_STATE", fromState, tryGetVid),

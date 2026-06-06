@@ -6,13 +6,22 @@
   },
   "MySql": {
     "_comment": "报警历史记录数据库（MySQL）连接字符串。",
-    "ConnectionString": "server=localhost;port=3306;database=gwm;user=root;password=root;"
+    "ConnectionString": "server=localhost;port=3306;database=secs;user=root;password=root;"
   },
   "VID": {
     "_comment": "VID 映射文件配置（CPName->VID）。",
     "CsvPath": "../Messages/Config/VID.csv",
     "CandidatePaths": [
       "../Messages/Config/VID.csv"
+    ],
+    "_comment_CsvPath": "优先使用该路径（可填绝对路径或相对项目根路径）；为空时按 CandidatePaths 探测。",
+    "_comment_CandidatePaths": "按顺序尝试，命中首个存在文件即使用。"
+  },
+  "CEID": {
+    "_comment": "CEID 映射文件配置（EventName->CEID）。",
+    "CsvPath": "../Messages/Config/CEID.csv",
+    "CandidatePaths": [
+      "../Messages/Config/CEID.csv"
     ],
     "_comment_CsvPath": "优先使用该路径（可填绝对路径或相对项目根路径）；为空时按 CandidatePaths 探测。",
     "_comment_CandidatePaths": "按顺序尝试，命中首个存在文件即使用。"
@@ -27,6 +36,19 @@
     "Host": "127.0.0.1",
     "Port": 7150,
     "UseHttps": false
+  },
+  "SecsDispatch": {
+    "S6F11": {
+      "MaxAttempts": 2,
+      "RetryDelayMs": 200,
+      "SpoolReplayIntervalMs": 1000,
+      "SpoolReplayBatchSize": 50,
+      "_comment": "S6F11 主动上报发送策略：最大尝试次数与重试间隔(ms)。"
+    },
+    "Grpc": {
+      "CallTimeoutMs": 5000,
+      "_comment": "EFEM gRPC 主动调用超时(ms)。"
+    }
   },
   "SecsListener": {
     "_comment": "SECS/HSMS 持续监听配置（用于接收 EAP 发来的 PrimaryMessage）。",
@@ -61,7 +83,7 @@
     "ServerAddresses": [
       "http://127.0.0.1:8848"
     ],
-    "Namespace": "GWP",
+    "Namespace": "GWL",
     "ServiceName": "SECS",
     "GroupName": "GY",
     "ClusterName": "DEFAULT",

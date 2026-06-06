@@ -10,23 +10,47 @@ public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
     private readonly SecsEfemGrpc _secsEfemGrpc;
     private readonly IDevice _device;
     private readonly ILogger<GrpcMeasurementDispatcher> _logger;
+    private readonly IPortContextStorage _portContextStorage;
 
     public GrpcMeasurementDispatcher(
         IConfiguration configuration,
         SecsEfemGrpc secsEfemGrpc,
         IDevice device,
-        ILogger<GrpcMeasurementDispatcher> logger)
+        ILogger<GrpcMeasurementDispatcher> logger,
+        IPortContextStorage portContextStorage)
     {
         _configuration = configuration;
         _secsEfemGrpc = secsEfemGrpc;
         _device = device;
         _logger = logger;
+        _portContextStorage = portContextStorage;
     }
 
     public async Task DispatchStartMeasurementAsync(S2F41_data data, CancellationToken cancellationToken)
     {
         var (targetServiceName, targetGroup, targetClusters, targetUseHttps, fallbackAddresses) = GetTargetOptions();
         var wafer = ToWaferMessage(data);
+
+        // 方法关键节点：START 前拉取一次状态，避免设备状态不满足时误启动。
+        var status = await _secsEfemGrpc.GetStatusFromServiceAsync(
+            targetServiceName,
+            targetGroup,
+            targetClusters,
+            targetUseHttps,
+            fallbackAddresses,
+            cancellationToken);
+
+        // if 关键分支：状态拉取失败时拒绝启动，避免盲发 START。
+        if (status is null)
+        {
+            throw new InvalidOperationException("START rejected: EFEM StatusReport failed before start.");
+        }
+
+        var runStatus = (status.RunStatus ?? string.Empty).Trim().ToLowerInvariant();
+        if (runStatus is "running" or "jam")
+        {
+            throw new InvalidOperationException($"START rejected: EFEM RunStatus={status.RunStatus}.");
+        }
 
         _logger.LogInformation("S2F41 START -> StartMeasurement trigger. LotId={LotId}, Mode={Mode}", wafer.LotId, _device.Mode);
         Console.WriteLine($"S2F41 START 触发 gRPC StartMeasurement, LotId:{wafer.LotId}, Mode:{_device.Mode}");
@@ -78,6 +102,48 @@ public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
         var (targetServiceName, targetGroup, targetClusters, targetUseHttps, fallbackAddresses) = GetTargetOptions();
         var wafer = ToWaferMessage(data);
 
+        // 方法关键节点：PPSELECT 必须携带 PORTID，作为多 LoadPort 场景的唯一上下文锚点。
+        var portIdFromCommand = ReadStringParameter(data.Parameters, "PORTID", "PORT", "LOADPORT")?.Trim();
+        if (string.IsNullOrWhiteSpace(portIdFromCommand))
+        {
+            throw new InvalidOperationException("PPSELECT rejected: missing required parameter PORTID.");
+        }
+
+        // 方法关键节点：PPSELECT 的 LOTID 优先取命令参数；缺失时允许从 ReportRFID 已写入的 Port 上下文兜底。
+        var lotIdFromCommand = (wafer.LotId ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(lotIdFromCommand)
+            && _portContextStorage.TryGetByPortId(portIdFromCommand, out var byPortContext)
+            && !string.IsNullOrWhiteSpace(byPortContext.LotId))
+        {
+            lotIdFromCommand = byPortContext.LotId.Trim();
+        }
+
+        // if 关键分支：同一 PORTID 已存在上下文且 LOTID 冲突时拒绝，避免串批次。
+        if (_portContextStorage.TryGetByPortId(portIdFromCommand, out var portContext)
+            && !string.IsNullOrWhiteSpace(lotIdFromCommand)
+            && !string.IsNullOrWhiteSpace(portContext.LotId)
+            && !string.Equals(portContext.LotId, lotIdFromCommand, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"PPSELECT rejected: PORTID/LOTID mismatch with ReportRFID context. PORTID={portIdFromCommand}, PPSELECT.LOTID={lotIdFromCommand}, RFID.LOTID={portContext.LotId}.");
+        }
+
+        // if 关键分支：同一 LOTID 已绑定其他 PORTID 时拒绝，防止跨 Port 串线。
+        if (!string.IsNullOrWhiteSpace(lotIdFromCommand)
+            && _portContextStorage.TryGetByLotId(lotIdFromCommand, out var lotContext)
+            && !string.IsNullOrWhiteSpace(lotContext.PortId)
+            && !string.Equals(lotContext.PortId, portIdFromCommand, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"PPSELECT rejected: LOTID already bound to different PORTID by ReportRFID context. LOTID={lotIdFromCommand}, PPSELECT.PORTID={portIdFromCommand}, RFID.PORTID={lotContext.PortId}.");
+        }
+
+        // 方法关键节点：优先读取 S2F41 中的 MODE 参数（VID=2001 对应语义），
+        // 在 PPSELECT 阶段提前下发到设备端作为运行前准备。
+        var modeFromCommand = ReadStringParameter(data.Parameters, "MODE");
+        if (!string.IsNullOrWhiteSpace(modeFromCommand))
+        {
+            _device.Mode = modeFromCommand.Trim();
+        }
+
         var slots = ReadSlotsParameter(data.Parameters).ToList();
         _device.SlotsList = slots;
 
@@ -85,15 +151,42 @@ public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
         {
             PPID = wafer.PPID,
             Mode = _device.Mode,
-            LotId = wafer.LotId ?? string.Empty
+            LotId = lotIdFromCommand,
+            PortId = portIdFromCommand
         };
         recipe.SlotsList.Add(_device.SlotsList);
 
         var slotsText = recipe.SlotsList.Count > 0 ? string.Join(',', recipe.SlotsList) : "<empty>";
-        _logger.LogInformation("S2F41 PPSELECT -> ProcessProgramSelect payload. PPID={PPID}, Mode={Mode}, LotId={LotId}, SlotsList={Slots}", recipe.PPID, recipe.Mode, recipe.LotId, slotsText);
-        Console.WriteLine($"S2F41 PPSELECT 触发 gRPC ProcessProgramSelect，PPID:{recipe.PPID}, Mode:{recipe.Mode}, LotId:{recipe.LotId}, SlotsList:{slotsText}");
+        _logger.LogInformation("S2F41 PPSELECT -> ProcessProgramSelect payload. PPID={PPID}, Mode={Mode}, PortId={PortId}, LotId={LotId}, SlotsList={Slots}", recipe.PPID, recipe.Mode, recipe.PortId, recipe.LotId, slotsText);
+        Console.WriteLine($"S2F41 PPSELECT 触发 gRPC ProcessProgramSelect，PPID:{recipe.PPID}, Mode:{recipe.Mode}, PortId:{recipe.PortId}, LotId:{recipe.LotId}, SlotsList:{slotsText}");
 
         await _secsEfemGrpc.SendProcessProgramSelectToServiceAsync(targetServiceName, targetGroup, targetClusters, targetUseHttps, recipe, fallbackAddresses, cancellationToken);
+    }
+
+    public async Task DispatchSlotMapSelectAsync(S3F17_data data, CancellationToken cancellationToken)
+    {
+        var (targetServiceName, targetGroup, targetClusters, targetUseHttps, fallbackAddresses) = GetTargetOptions();
+
+        // 方法关键节点：S3F17 对应独立槽位选择链路，和 PPSELECT 分离。
+        var message = new SlotMapSelectMessage
+        {
+            PortId = string.Empty,
+            LotId = data.LOTID ?? string.Empty
+        };
+        message.SlotsList.Add(data.SlotMap);
+
+        var slotsText = message.SlotsList.Count > 0 ? string.Join(',', message.SlotsList) : "<empty>";
+        _logger.LogInformation("S3F17 -> SlotMapSelect payload. LotId={LotId}, SlotsList={Slots}", message.LotId, slotsText);
+        Console.WriteLine($"S3F17 触发 gRPC SlotMapSelect, LotId:{message.LotId}, SlotsList:{slotsText}");
+
+        await _secsEfemGrpc.SendSlotMapSelectToServiceAsync(
+            targetServiceName,
+            targetGroup,
+            targetClusters,
+            targetUseHttps,
+            message,
+            fallbackAddresses,
+            cancellationToken);
     }
 
     private (string ServiceName, string GroupName, string[] Clusters, bool UseHttps, string[] FallbackAddresses) GetTargetOptions()

@@ -11,10 +11,12 @@ namespace SECShandler.Handlers
     public sealed class CarrierPrimaryMessageHandler : IPrimaryMessageHandler
     {
         private readonly IDevice _device;
+        private readonly IMeasurementDispatcher _measurementDispatcher;
 
-        public CarrierPrimaryMessageHandler(IDevice device)
+        public CarrierPrimaryMessageHandler(IDevice device, IMeasurementDispatcher measurementDispatcher)
         {
             _device = device;
+            _measurementDispatcher = measurementDispatcher;
         }
 
         // 本处理器负责处理 S3F17（LOTID + SlotMap 下发），注册进 SupportedMessages。
@@ -28,7 +30,7 @@ namespace SECShandler.Handlers
         public async Task HandleAsync(SecsGem secsGem, PrimaryMessageWrapper primaryMessage, CancellationToken cancellationToken)
         {
             // 方法关键节点：将 S3F17 分发到 CarrierSxFyFunctions 进行解析与状态更新。
-            await CarrierSxFyFunctions.HandleS3F17Async(primaryMessage, _device);
+            await CarrierSxFyFunctions.HandleS3F17Async(primaryMessage, _device, _measurementDispatcher, cancellationToken);
         }
     }
 }

@@ -38,6 +38,24 @@ message CarrierMessage {
   repeated uint32 slotsList = 5;
 }
 
+// 仅按 Port 触发的事件请求（例如花篮取走）。
+message PortEventMessage {
+  // Loadport位置。
+  string portId = 1;
+}
+
+// S3F17 对应的槽位选择请求（与 PPSELECT 解耦）。
+message SlotMapSelectMessage {
+  // Loadport位置。
+  string portId = 1;
+
+  // 批次 ID。
+  string lotId = 2;
+
+  // 本次要处理的晶圆槽位列表。
+  repeated uint32 slotsList = 3;
+}
+
 // 晶圆上下文信息（用于停止/暂停/恢复/结果上报等）。
 message WaferMessage {
   // 晶圆槽位。
@@ -57,6 +75,30 @@ message WaferMessage {
 
   // 检测结果（建议由业务约定枚举值）。
   string result = 6;
+
+  // 当前晶圆所属 Port（可选）。
+  string portId = 7;
+}
+
+// 整盒晶圆检测完成上报。
+message LotCompletedMessage {
+  // Loadport位置。
+  string portId = 1;
+
+  // 批次 ID。
+  string lotId = 2;
+
+  // 完成状态（例如 Completed/Aborted/Error）。
+  string status = 3;
+}
+
+// 通用事件上报（由 EFEM 传事件名 + 关键参数，本项目映射为 CEID 后再做 S6F11）。
+message GenericEventReportRequest {
+  // 事件名（通过 CEID.csv 映射到 CEID）。
+  string eventName = 1;
+
+  // 关键参数（键值对，键建议使用 CPName）。
+  map<string, string> parameters = 2;
 }
 
 // 控制类接口通用响应。

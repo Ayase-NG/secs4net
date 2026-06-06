@@ -35,5 +35,6 @@ namespace SECShandler.Interfaces
         Task DispatchPauseMeasurementAsync(S2F41_data data, CancellationToken cancellationToken);
         Task DispatchResumeMeasurementAsync(S2F41_data data, CancellationToken cancellationToken);
         Task DispatchProcessProgramSelectAsync(S2F41_data data, CancellationToken cancellationToken);
+        Task DispatchSlotMapSelectAsync(S3F17_data data, CancellationToken cancellationToken);
     }
 }

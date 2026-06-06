@@ -1,7 +1,8 @@
 # Copilot Instructions
 
 ## 项目指南
-- This project is on the Equipment side: it collects device information, converts it to SECS messages for Host, and also receives Host data and translates it into internal data for gRPC communication.
+- This project is on the Equipment side: it collects device information, converts it to SECS messages for Host, and also receives Host data and translates it into internal data for gRPC communication. 
+- Define the minimal production flow: report mapping results first; Host then issues control commands in sequence `S3F17`, `S16F15`, `S14F9`, `S2F41`, etc.; device reports test results via `S6F11`.
 - Persist both alarm events and key operational logs into the database for traceability, separated by Equipment-side, Host-side, and middleware-side critical information.
 
 ## gRPC Method Organization
