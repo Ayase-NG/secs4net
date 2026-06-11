@@ -52,8 +52,11 @@ message SlotMapSelectMessage {
   // 批次 ID。
   string lotId = 2;
 
+  // Carrier ID。
+  string carrierId = 3;
+
   // 本次要处理的晶圆槽位列表。
-  repeated uint32 slotsList = 3;
+  repeated uint32 slotsList = 4;
 }
 
 // 晶圆上下文信息（用于停止/暂停/恢复/结果上报等）。
@@ -278,6 +281,12 @@ message ReportReply {
 
   // 返回信息。
   string message = 2;
+}
+
+// 在线状态
+message OnlineStatusRequest {
+  // 请求来源（设备/模块）。
+  string source = 1;
 }
 
 // 无参请求体

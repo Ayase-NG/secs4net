@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace SECSGrpcService.Services;
 
-public sealed class SecsHandlerRuntimeState : IDevice, IReportStorage, IEventLinkStorage, IEventEnableStorage, IAlarmEnableStorage, IAlarmStateStorage, ITimeSyncStorage, IS6F11SpoolStorage, IPortContextStorage
+public sealed class SecsHandlerRuntimeState : IDevice, IReportStorage, IEventLinkStorage, IEventEnableStorage, IAlarmEnableStorage, IAlarmStateStorage, ITimeSyncStorage, IS6F11SpoolStorage, IPortContextStorage, IJobPlanStorage
 {
     private readonly object _stateLock = new();
     private readonly Dictionary<uint, List<uint>> _reports = new();
@@ -21,6 +21,8 @@ public sealed class SecsHandlerRuntimeState : IDevice, IReportStorage, IEventLin
     private readonly List<S6F11_data> _s6f11Spool = new();
     private readonly int _s6f11SpoolMaxCount;
     private readonly Dictionary<string, PortRuntimeContext> _portContexts = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ProcessJobPlan> _processJobs = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ControlJobPlan> _controlJobs = new(StringComparer.OrdinalIgnoreCase);
 
     public SecsHandlerRuntimeState()
     {
@@ -140,6 +142,127 @@ public sealed class SecsHandlerRuntimeState : IDevice, IReportStorage, IEventLin
         {
             return _portContexts.Values.Select(ClonePortContext).ToList();
         }
+    }
+
+    // ===== IJobPlanStorage =====
+    public void UpsertProcessJob(ProcessJobPlan plan)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+
+        var key = (plan.PJID ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return;
+        }
+
+        lock (_stateLock)
+        {
+            _processJobs[key] = CloneProcessJobPlan(plan);
+            _processJobs[key].UpdatedAtUtc = DateTime.UtcNow;
+        }
+
+        PersistSnapshotNoThrow();
+    }
+
+    public bool TryGetProcessJob(string pjId, out ProcessJobPlan plan)
+    {
+        plan = new ProcessJobPlan();
+        var key = (pjId ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return false;
+        }
+
+        lock (_stateLock)
+        {
+            if (!_processJobs.TryGetValue(key, out var value))
+            {
+                return false;
+            }
+
+            plan = CloneProcessJobPlan(value);
+            return true;
+        }
+    }
+
+    public IReadOnlyList<ProcessJobPlan> GetAllProcessJobs()
+    {
+        lock (_stateLock)
+        {
+            return _processJobs.Values.Select(CloneProcessJobPlan).ToList();
+        }
+    }
+
+    public void UpsertControlJob(ControlJobPlan plan)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+
+        var key = (plan.CJID ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return;
+        }
+
+        lock (_stateLock)
+        {
+            _controlJobs[key] = CloneControlJobPlan(plan);
+            _controlJobs[key].UpdatedAtUtc = DateTime.UtcNow;
+        }
+
+        PersistSnapshotNoThrow();
+    }
+
+    public bool TryGetControlJob(string cjId, out ControlJobPlan plan)
+    {
+        plan = new ControlJobPlan();
+        var key = (cjId ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return false;
+        }
+
+        lock (_stateLock)
+        {
+            if (!_controlJobs.TryGetValue(key, out var value))
+            {
+                return false;
+            }
+
+            plan = CloneControlJobPlan(value);
+            return true;
+        }
+    }
+
+    public IReadOnlyList<ControlJobPlan> GetAllControlJobs()
+    {
+        lock (_stateLock)
+        {
+            return _controlJobs.Values.Select(CloneControlJobPlan).ToList();
+        }
+    }
+
+    public void MarkProcessJobAutoStarted(string pjId, string portId, string lotId)
+    {
+        var key = (pjId ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return;
+        }
+
+        lock (_stateLock)
+        {
+            if (!_processJobs.TryGetValue(key, out var plan))
+            {
+                return;
+            }
+
+            plan.AutoStarted = true;
+            plan.AutoStartedPortId = portId ?? string.Empty;
+            plan.AutoStartedLotId = lotId ?? string.Empty;
+            plan.UpdatedAtUtc = DateTime.UtcNow;
+        }
+
+        PersistSnapshotNoThrow();
     }
 
     // ===== ITimeSyncStorage =====
@@ -523,7 +646,9 @@ public sealed class SecsHandlerRuntimeState : IDevice, IReportStorage, IEventLin
                 LastHostTimeUtc = _lastHostTimeUtc,
                 LastHostTimeRaw = _lastHostTimeRaw,
                 S6F11Spool = _s6f11Spool.Select(CloneS6F11).ToList(),
-                PortContexts = _portContexts.Values.Select(ClonePortContext).ToList()
+                PortContexts = _portContexts.Values.Select(ClonePortContext).ToList(),
+                ProcessJobs = _processJobs.Values.Select(CloneProcessJobPlan).ToList(),
+                ControlJobs = _controlJobs.Values.Select(CloneControlJobPlan).ToList()
             };
         }
 
@@ -646,6 +771,32 @@ public sealed class SecsHandlerRuntimeState : IDevice, IReportStorage, IEventLin
                         }
                     }
                 }
+
+                _processJobs.Clear();
+                if (snapshot.ProcessJobs is not null)
+                {
+                    foreach (var plan in snapshot.ProcessJobs)
+                    {
+                        var key = (plan.PJID ?? string.Empty).Trim();
+                        if (!string.IsNullOrWhiteSpace(key))
+                        {
+                            _processJobs[key] = CloneProcessJobPlan(plan);
+                        }
+                    }
+                }
+
+                _controlJobs.Clear();
+                if (snapshot.ControlJobs is not null)
+                {
+                    foreach (var plan in snapshot.ControlJobs)
+                    {
+                        var key = (plan.CJID ?? string.Empty).Trim();
+                        if (!string.IsNullOrWhiteSpace(key))
+                        {
+                            _controlJobs[key] = CloneControlJobPlan(plan);
+                        }
+                    }
+                }
             }
         }
         catch
@@ -667,6 +818,8 @@ public sealed class SecsHandlerRuntimeState : IDevice, IReportStorage, IEventLin
         public string LastHostTimeRaw { get; set; } = string.Empty;
         public List<S6F11_data> S6F11Spool { get; set; } = new();
         public List<PortRuntimeContext> PortContexts { get; set; } = new();
+        public List<ProcessJobPlan> ProcessJobs { get; set; } = new();
+        public List<ControlJobPlan> ControlJobs { get; set; } = new();
     }
 
     private sealed class RuntimeAlarmSnapshot
@@ -707,6 +860,40 @@ public sealed class SecsHandlerRuntimeState : IDevice, IReportStorage, IEventLin
             CarrierId = source.CarrierId,
             LotId = source.LotId,
             SlotsList = source.SlotsList,
+            UpdatedAtUtc = source.UpdatedAtUtc
+        };
+    }
+
+    private static ProcessJobPlan CloneProcessJobPlan(ProcessJobPlan source)
+    {
+        return new ProcessJobPlan
+        {
+            PJID = source.PJID,
+            RecipeId = source.RecipeId,
+            AutoStart = source.AutoStart,
+            PauseEvents = source.PauseEvents.ToList(),
+            Carriers = source.Carriers
+                .Select(x => new ProcessJobCarrierPlan
+                {
+                    CarrierId = x.CarrierId,
+                    Slots = x.Slots.ToList()
+                })
+                .ToList(),
+            AutoStarted = source.AutoStarted,
+            AutoStartedPortId = source.AutoStartedPortId,
+            AutoStartedLotId = source.AutoStartedLotId,
+            UpdatedAtUtc = source.UpdatedAtUtc
+        };
+    }
+
+    private static ControlJobPlan CloneControlJobPlan(ControlJobPlan source)
+    {
+        return new ControlJobPlan
+        {
+            CJID = source.CJID,
+            ProcessingCtrlSpec = source.ProcessingCtrlSpec.ToList(),
+            CarrierInputSpec = source.CarrierInputSpec.ToList(),
+            StartMethod = source.StartMethod,
             UpdatedAtUtc = source.UpdatedAtUtc
         };
     }

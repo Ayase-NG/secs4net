@@ -15,3 +15,6 @@
 
 ## Code Comments
 - Include key comments at branch points (methods, if/for/switch, and other critical decision points) in future code changes to enhance clarity and maintainability.
+- Default to making code modifications with each inquiry rather than just analysis.
+- For every new or modified method, add comments explaining its functionality and purpose.
+- All asynchronous method calls (including `await` statements) must also include comments explaining their purpose and functionality.

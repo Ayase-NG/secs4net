@@ -22,6 +22,8 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
     private readonly IAlarmEnableStorage _alarmEnableStorage;
     private readonly IAlarmStateStorage _alarmStateStorage;
     private readonly IPortContextStorage _portContextStorage;
+    private readonly IJobPlanStorage _jobPlanStorage;
+    private readonly IMeasurementDispatcher _measurementDispatcher;
 
     public ReportGrpc(
         ILogger<ReportGrpc> logger,
@@ -34,7 +36,9 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
         IEventLinkStorage eventLinkStorage,
         IAlarmEnableStorage alarmEnableStorage,
         IAlarmStateStorage alarmStateStorage,
-        IPortContextStorage portContextStorage)
+        IPortContextStorage portContextStorage,
+        IJobPlanStorage jobPlanStorage,
+        IMeasurementDispatcher measurementDispatcher)
     {
         _logger = logger;
         _secsGemContext = secsGemContext;
@@ -47,10 +51,12 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
         _alarmEnableStorage = alarmEnableStorage;
         _alarmStateStorage = alarmStateStorage;
         _portContextStorage = portContextStorage;
+        _jobPlanStorage = jobPlanStorage;
+        _measurementDispatcher = measurementDispatcher;
     }
 
     /// <summary>
-    /// 上报 RFID 与 Mapping 结果，S6F11。
+    /// 上报 RFID 与 Mapping 结果，S6F11。《暂时不使用！目前用GenericEventReportRequest替代》
     /// </summary>
     public override async Task<ReportReply> ReportRFID(CarrierMessage request, ServerCallContext context)
     {
@@ -94,6 +100,9 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
         {
             _logger.LogWarning("Failed or skipped S6F11 send after ReportRFID. PortId={PortId}, RFID={RFID}", request.PortId, request.RFID);
         }
+
+        // 方法关键节点：Carrier 到达（Mapping 上报）后按 S14/S16 计划尝试自动调度。
+        await TryDispatchPlannedJobOnCarrierArrivedAsync(request, context.CancellationToken).ConfigureAwait(false);
 
         return new ReportReply
         {
@@ -385,10 +394,10 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
     /// 请求切换远程在线状态。
     /// 规则：仅当当前为 OnLineLocal 时切换为 OnLineRemote 并返回成功。
     /// </summary>
-    public override async Task<OnlineStatusReply> RequestOnlineStatus(NoParams request, ServerCallContext context)
+    public override async Task<OnlineStatusReply> RequestOnlineStatus(OnlineStatusRequest request, ServerCallContext context)
     {
-        // if 关键分支：当前处于 OnLineLocal 时允许切换为 OnLineRemote。
-        if (_device.IsOnline == DeviceOnlineState.OnLineLocal)
+        // if 关键分支：当前处于 OnLineLocal 时允许切换为 OnLineRemote。本地转远程
+        if (_device.IsOnline == DeviceOnlineState.OnLineLocal && request.Source == "remote")
         {
             var fromState = _device.IsOnline.ToString();
             _device.IsOnline = DeviceOnlineState.OnLineRemote;
@@ -418,9 +427,50 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
                 Message = "切换成功，已进入远程在线状态。",
                 Online = true
             };
-        }else if (_device.IsOnline == DeviceOnlineState.OnLineRemote)
+        // 远程转本地
+        }else if (_device.IsOnline == DeviceOnlineState.OnLineRemote && request.Source == "local")
         {
-            // if 关键分支：当前已是 OnLineRemote 时返回提示信息。
+            var fromState = _device.IsOnline.ToString();
+            _device.IsOnline = DeviceOnlineState.OnLineLocal;
+            var toState = _device.IsOnline.ToString();
+
+            // 方法关键节点：状态切换成功后，按预设模板发送 OnlineStateChanged 的 S6F11（CEID=1021）。
+            var stateChangedData = ActiveReportSxFyFunctions.BuildOnlineStateChangedReport(
+                _secsGemContext.GetNextDataId(),
+                fromState,
+                toState,
+                "RequestOnlineStatus",
+                TryGetVid);
+
+            var sent = await _activeSxFyDispatcher.SendS6F11Async(stateChangedData, context.CancellationToken).ConfigureAwait(false);
+            if (sent)
+            {
+                _logger.LogInformation("Online state changed reported. CEID={CEID}, From={FromState}, To={ToState}", stateChangedData.CEID, fromState, toState);
+            }
+            else
+            {
+                _logger.LogWarning("Online state changed report skipped/failed. CEID={CEID}, From={FromState}, To={ToState}", stateChangedData.CEID, fromState, toState);
+            }
+            return new OnlineStatusReply
+            {
+                MessageCode = 0,
+                Message = "切换成功，已进入本地在线状态。",
+                Online = true
+            };
+        }
+        else if (_device.IsOnline == DeviceOnlineState.OnLineLocal && request.Source == "local")
+        {
+            // if 关键分支：当前为 OffLine 时拒绝切换并提示。
+            return new OnlineStatusReply
+            {
+                MessageCode = 1,
+                Message = "目前为本地在线状态，无需切换。",
+                Online = true
+            };
+        }
+        else if (_device.IsOnline == DeviceOnlineState.OnLineRemote && request.Source == "remote")
+        {
+            // if 关键分支：当前为 OffLine 时允许切换为 OnLineLocal。
             return new OnlineStatusReply
             {
                 MessageCode = 2,
@@ -434,7 +484,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
         {
             MessageCode = 1,
             Message = "目前为离线状态，禁止切换为远程。",
-            Online = _device.IsOnline is DeviceOnlineState.OnLineLocal or DeviceOnlineState.OnLineRemote
+            Online = false
         };
     }
 
@@ -453,6 +503,10 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
         return (false, 0);
     }
 
+    /// <summary>
+    /// 将报警代码字节转换为可读字符串。
+    /// 作用：优先按 UTF8 解码，失败时回退十六进制，便于日志与上报文本统一展示。
+    /// </summary>
     private static string ToAlarmCodeString(ByteString alarmCode)
     {
         if (alarmCode is null || alarmCode.Length == 0)
@@ -469,5 +523,102 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
         }
 
         return Convert.ToHexString(alarmCode.ToByteArray());
+    }
+
+    /// <summary>
+    /// Carrier 到达后的计划调度入口。
+    /// 作用：基于已缓存的 ControlJob/ProcessJob 与当前 Carrier 上下文，按 PRPROCESSSTART 决定自动下发 PPSELECT+START 或等待 Host 指令。
+    /// </summary>
+    private async Task TryDispatchPlannedJobOnCarrierArrivedAsync(CarrierMessage request, CancellationToken cancellationToken)
+    {
+        var carrierId = (request.RFID ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(carrierId))
+        {
+            return;
+        }
+
+        var controlJobs = _jobPlanStorage.GetAllControlJobs();
+        if (controlJobs.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var cj in controlJobs.OrderByDescending(x => x.UpdatedAtUtc))
+        {
+            // if 关键分支：当前到达 Carrier 不在 CJ 输入列表时跳过。
+            if (cj.CarrierInputSpec.Count == 0
+                || !cj.CarrierInputSpec.Any(x => string.Equals(x, carrierId, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            foreach (var pjId in cj.ProcessingCtrlSpec)
+            {
+                if (!_jobPlanStorage.TryGetProcessJob(pjId, out var pj))
+                {
+                    continue;
+                }
+
+                // if 关键分支：PRPROCESSSTART=false 时仅保留计划等待 Host 显式 START。
+                if (!pj.AutoStart)
+                {
+                    _logger.LogInformation("ProcessJob waits host command because PRPROCESSSTART=false. PJID={PJID}, CarrierId={CarrierId}", pj.PJID, carrierId);
+                    continue;
+                }
+
+                // if 关键分支：已自动触发过则跳过，避免重复启动。
+                if (pj.AutoStarted)
+                {
+                    continue;
+                }
+
+                var matchedCarrier = pj.Carriers.FirstOrDefault(x => string.Equals(x.CarrierId, carrierId, StringComparison.OrdinalIgnoreCase));
+                if (matchedCarrier is null)
+                {
+                    continue;
+                }
+
+                var slots = matchedCarrier.Slots.Count > 0
+                    ? matchedCarrier.Slots.Where(x => x > 0).Distinct().ToList()
+                    : request.SlotsList.Where(x => x > 0).Distinct().ToList();
+
+                var ppSelect = new S2F41_data
+                {
+                    RCMD = "PPSELECT",
+                    Parameters = new Dictionary<string, Secs4Net.Item>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["PPID"] = Secs4Net.Item.A(string.IsNullOrWhiteSpace(pj.RecipeId) ? "DEFAULT" : pj.RecipeId),
+                        ["LOTID"] = Secs4Net.Item.A(request.LotId ?? string.Empty),
+                        ["PORTID"] = Secs4Net.Item.A(request.PortId ?? string.Empty),
+                        ["MODE"] = Secs4Net.Item.A(_device.Mode)
+                    }
+                };
+
+                if (slots.Count > 0)
+                {
+                    ppSelect.Parameters["SLOTSLIST"] = Secs4Net.Item.A(string.Join(',', slots));
+                }
+
+                // 方法关键节点：异步下发 PPSELECT，先把配方/批次/端口/槽位上下文写入设备侧，作为 START 前置条件。
+                await _measurementDispatcher.DispatchProcessProgramSelectAsync(ppSelect, cancellationToken).ConfigureAwait(false);
+
+                var start = new S2F41_data
+                {
+                    RCMD = "START",
+                    Parameters = new Dictionary<string, Secs4Net.Item>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["LOTID"] = Secs4Net.Item.A(request.LotId ?? string.Empty),
+                        ["PORTID"] = Secs4Net.Item.A(request.PortId ?? string.Empty)
+                    }
+                };
+
+                // 方法关键节点：在 PPSELECT 成功后异步下发 START，驱动设备执行对应 ProcessJob。
+                await _measurementDispatcher.DispatchStartMeasurementAsync(start, cancellationToken).ConfigureAwait(false);
+
+                _jobPlanStorage.MarkProcessJobAutoStarted(pj.PJID, request.PortId ?? string.Empty, request.LotId ?? string.Empty);
+                _logger.LogInformation("Auto dispatched planned job on carrier arrived. CJID={CJID}, PJID={PJID}, CarrierId={CarrierId}, PortId={PortId}, LotId={LotId}", cj.CJID, pj.PJID, carrierId, request.PortId, request.LotId);
+                return;
+            }
+        }
     }
 }

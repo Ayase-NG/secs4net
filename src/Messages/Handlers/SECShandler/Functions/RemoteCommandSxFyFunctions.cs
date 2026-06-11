@@ -104,6 +104,7 @@ namespace SECShandler.Functions
             IMeasurementDispatcher measurementDispatcher,
             IIdempotencyGuard idempotencyGuard,
             IPortContextStorage portContextStorage,
+            IJobPlanStorage jobPlanStorage,
             CancellationToken cancellationToken)
         {
             var ack = (byte)1;
@@ -119,6 +120,7 @@ namespace SECShandler.Functions
                 {
                     ack = 0;
                     var duplicatedReply = S16F16_builder.Build(ack);
+                    // 方法关键节点：命中幂等后立即异步回复 S16F16，告知 Host 本次请求已被接收过且无需重复处理。
                     await primary.TryReplyAsync(duplicatedReply, cancellationToken).ConfigureAwait(false);
                     return;
                 }
@@ -127,24 +129,37 @@ namespace SECShandler.Functions
                 var hasValidPj = request.ProcessJobs.Any(p => !string.IsNullOrWhiteSpace(p.PJID));
                 ack = device.IsOnline == DeviceOnlineState.OnLineRemote && hasValidPj ? (byte)0 : (byte)1;
 
-                // 方法关键节点：S16F15 接受后，复用现有 PPSELECT/START gRPC 链路执行首个有效 PJ。
+                // 方法关键节点：S16F15 仅做计划缓存，不直接执行；等待 S14F9 关联与 Carrier 到达触发。
                 if (ack == 0)
                 {
-                    var selected = request.ProcessJobs.FirstOrDefault(p => !string.IsNullOrWhiteSpace(p.PJID));
-                    if (selected is null)
+                    var validJobs = request.ProcessJobs.Where(p => !string.IsNullOrWhiteSpace(p.PJID)).ToList();
+                    if (validJobs.Count == 0)
                     {
                         ack = 1;
                     }
                     else
                     {
-                        var plan = BuildExecutionPlanFromProcessJob(selected, portContextStorage);
-                        if (plan is null)
+                        foreach (var processJob in validJobs)
                         {
-                            ack = 1;
-                        }
-                        else
-                        {
-                            await ExecutePlanByReusingS2F41Async(measurementDispatcher, plan.Value, cancellationToken).ConfigureAwait(false);
+                            // 方法关键节点：将 PJ 关键字段落入运行态缓存，供后续 S14F9 关联和 Carrier 到达调度使用。
+                            var plan = new ProcessJobPlan
+                            {
+                                PJID = processJob.PJID.Trim(),
+                                RecipeId = processJob.RecipeId?.Trim() ?? string.Empty,
+                                AutoStart = processJob.PRPROCESSSTART,
+                                PauseEvents = processJob.PRPAUSEEVENT.Distinct().ToList(),
+                                Carriers = processJob.Carriers
+                                    .Where(c => !string.IsNullOrWhiteSpace(c.CarrierId))
+                                    .Select(c => new ProcessJobCarrierPlan
+                                    {
+                                        CarrierId = c.CarrierId.Trim(),
+                                        Slots = c.Slots.Where(x => x > 0).Distinct().ToList()
+                                    })
+                                    .ToList(),
+                                UpdatedAtUtc = DateTime.UtcNow
+                            };
+
+                            jobPlanStorage.UpsertProcessJob(plan);
                         }
                     }
                 }
@@ -158,10 +173,12 @@ namespace SECShandler.Functions
             var reply = S16F16_builder.Build(ack);
             try
             {
+                // 方法关键节点：优先使用 Primary 通道异步回发 S16F16，确保与当前事务上下文一一对应。
                 await primary.TryReplyAsync(reply, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception)
             {
+                // 兜底分支：Primary 回包失败时通过 SecsGem 异步发送，尽量保证 Host 能收到 ACK。
                 await secsGem.SendAsync(reply, cancellationToken).ConfigureAwait(false);
             }
         }
@@ -176,6 +193,7 @@ namespace SECShandler.Functions
             IDevice device,
             IIdempotencyGuard idempotencyGuard,
             IPortContextStorage portContextStorage,
+            IJobPlanStorage jobPlanStorage,
             CancellationToken cancellationToken)
         {
             var ack = (byte)1;
@@ -191,6 +209,7 @@ namespace SECShandler.Functions
                 {
                     ack = 0;
                     var duplicatedReply = S14F10_builder.Build(ack);
+                    // 方法关键节点：命中幂等后立即异步回复 S14F10，避免 Host 重发导致控制流重复入库。
                     await primary.TryReplyAsync(duplicatedReply, cancellationToken).ConfigureAwait(false);
                     return;
                 }
@@ -199,7 +218,7 @@ namespace SECShandler.Functions
                 var hasValidCj = request.ControlJobs.Any(j => !string.IsNullOrWhiteSpace(j.ObjID));
                 ack = device.IsOnline == DeviceOnlineState.OnLineRemote && hasValidCj ? (byte)0 : (byte)1;
 
-                // 方法关键节点：S14F9 仅做控制流管理，记录 StartMethod 对应的可启动上下文，不直接下发动作。
+                // 方法关键节点：S14F9 进行 CJ-PJ 关联校验并缓存，不直接下发动作。
                 if (ack == 0)
                 {
                     var managedCount = 0;
@@ -211,6 +230,48 @@ namespace SECShandler.Functions
                         }
 
                         if (cj.CarrierInputSpec.Count == 0)
+                        {
+                            continue;
+                        }
+
+                        // if 关键分支：ProcessingCtrlSpec 未携带 PJID 时不接受该 CJ。
+                        if (cj.ProcessingCtrlSpec.Count == 0)
+                        {
+                            continue;
+                        }
+
+                        var relatedPjPlans = new List<ProcessJobPlan>();
+                        foreach (var pjId in cj.ProcessingCtrlSpec.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct(StringComparer.OrdinalIgnoreCase))
+                        {
+                            if (!jobPlanStorage.TryGetProcessJob(pjId, out var pjPlan))
+                            {
+                                relatedPjPlans.Clear();
+                                break;
+                            }
+
+                            relatedPjPlans.Add(pjPlan);
+                        }
+
+                        // if 关键分支：任一 PJ 不存在则该 CJ 校验失败。
+                        if (relatedPjPlans.Count == 0)
+                        {
+                            continue;
+                        }
+
+                        // if 关键分支：校验 CarrierInputSpec 与关联 PJ 的 Carrier 集是否有交集。
+                        var carrierSetFromPj = relatedPjPlans
+                            .SelectMany(p => p.Carriers)
+                            .Select(c => c.CarrierId)
+                            .Where(x => !string.IsNullOrWhiteSpace(x))
+                            .Select(x => x.Trim())
+                            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                        var carrierSetFromCj = cj.CarrierInputSpec
+                            .Where(x => !string.IsNullOrWhiteSpace(x))
+                            .Select(x => x.Trim())
+                            .ToList();
+
+                        if (carrierSetFromCj.Count == 0 || carrierSetFromCj.All(x => !carrierSetFromPj.Contains(x)))
                         {
                             continue;
                         }
@@ -233,8 +294,23 @@ namespace SECShandler.Functions
 
                             matched.UpdatedAtUtc = DateTime.UtcNow;
                             portContextStorage.Upsert(matched);
-                            managedCount++;
                         }
+
+                        // 方法关键节点：CJ 校验通过后落库，等待 Carrier 到达时由 ReportRFID 触发调度。
+                        jobPlanStorage.UpsertControlJob(new ControlJobPlan
+                        {
+                            CJID = cj.ObjID.Trim(),
+                            ProcessingCtrlSpec = cj.ProcessingCtrlSpec
+                                .Where(x => !string.IsNullOrWhiteSpace(x))
+                                .Select(x => x.Trim())
+                                .Distinct(StringComparer.OrdinalIgnoreCase)
+                                .ToList(),
+                            CarrierInputSpec = carrierSetFromCj,
+                            StartMethod = cj.StartMethod,
+                            UpdatedAtUtc = DateTime.UtcNow
+                        });
+
+                        managedCount++;
                     }
 
                     if (managedCount == 0)
@@ -252,10 +328,12 @@ namespace SECShandler.Functions
             var reply = S14F10_builder.Build(ack);
             try
             {
+                // 方法关键节点：优先走当前 Primary 会话异步回复 S14F10，保持请求-应答关联。
                 await primary.TryReplyAsync(reply, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception)
             {
+                // 兜底分支：Primary 回包异常时通过 SecsGem 异步发送 ACK，降低丢应答风险。
                 await secsGem.SendAsync(reply, cancellationToken).ConfigureAwait(false);
             }
         }
@@ -336,6 +414,10 @@ namespace SECShandler.Functions
             return null;
         }
 
+        /// <summary>
+        /// 复用现有 S2F41 分发链路执行一条计划（先 PPSELECT 再 START）。
+        /// 作用：在不新增底层设备接口的前提下，复用既有 gRPC 控制通道执行计划。
+        /// </summary>
         private static async Task ExecutePlanByReusingS2F41Async(
             IMeasurementDispatcher measurementDispatcher,
             (string RecipeId, string LotId, string PortId, List<uint> Slots) plan,
@@ -373,6 +455,10 @@ namespace SECShandler.Functions
             await measurementDispatcher.DispatchStartMeasurementAsync(start, cancellationToken).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// 从 ProcessJob 与 Port 上下文构建可执行计划。
+        /// 作用：将 PJ 中的 Carrier/Slots 与运行态 Port/Lot 信息合并，生成统一执行输入。
+        /// </summary>
         private static (string RecipeId, string LotId, string PortId, List<uint> Slots)? BuildExecutionPlanFromProcessJob(
             S16F15_process_job_data processJob,
             IPortContextStorage portContextStorage)
@@ -415,6 +501,10 @@ namespace SECShandler.Functions
             return null;
         }
 
+        /// <summary>
+        /// 将文本槽位列表解析为无符号整数集合。
+        /// 作用：兼容运行态中以字符串保存的 SLOTSLIST（如 "1,3,7"）并转换为执行用列表。
+        /// </summary>
         private static List<uint> ParseSlotsFromText(string? slotsText)
         {
             var result = new List<uint>();
@@ -434,6 +524,10 @@ namespace SECShandler.Functions
             return result;
         }
 
+        /// <summary>
+        /// 构建 S2F41 幂等键。
+        /// 作用：将 RCMD 与参数按稳定顺序拼接，避免短时间重复命令被重复执行。
+        /// </summary>
         private static string BuildS2F41IdempotencyKey(string rcmd, Dictionary<string, Item> parameters)
         {
             var sb = new StringBuilder(rcmd);
@@ -445,6 +539,10 @@ namespace SECShandler.Functions
             return sb.ToString();
         }
 
+        /// <summary>
+        /// 构建 S16F15 幂等键。
+        /// 作用：按 DATAID 与 PJID 集合标识同一批次任务，支持重复请求去重。
+        /// </summary>
         private static string BuildS16F15IdempotencyKey(S16F15_data request)
         {
             var pjIds = request.ProcessJobs
@@ -455,6 +553,10 @@ namespace SECShandler.Functions
             return $"{request.DATAID}:{string.Join(',', pjIds)}";
         }
 
+        /// <summary>
+        /// 构建 S14F9 幂等键。
+        /// 作用：按对象规范/类型与 ObjID 集合标识同一组 ControlJob，避免重复入库。
+        /// </summary>
         private static string BuildS14F9IdempotencyKey(S14F9_data request)
         {
             var objIds = request.ControlJobs
@@ -462,7 +564,7 @@ namespace SECShandler.Functions
                 .Where(x => !string.IsNullOrWhiteSpace(x))
                 .OrderBy(x => x, StringComparer.OrdinalIgnoreCase);
 
-            return $"{request.ObjectDomain}:{request.ObjectType}:{string.Join(',', objIds)}";
+            return $"{request.OBJSPEC}:{request.OBJTYPE}:{string.Join(',', objIds)}";
         }
     }
 }

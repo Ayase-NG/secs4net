@@ -28,6 +28,7 @@ namespace SECSparser
                 throw new InvalidOperationException("Invalid S14F9 message: root list missing or invalid.");
             }
 
+            // 前两项分别为对象规范和对象类型。
             var objectDomainItem = root[0];
             var objectTypeItem = root[1];
 
@@ -39,8 +40,8 @@ namespace SECSparser
 
             var data = new S14F9_data
             {
-                ObjectDomain = objectDomainItem.GetString() ?? string.Empty,
-                ObjectType = objectTypeItem.GetString() ?? string.Empty,
+                OBJSPEC = objectDomainItem.GetString() ?? string.Empty,
+                OBJTYPE = objectTypeItem.GetString() ?? string.Empty,
                 timeStamp = DateTime.UtcNow
             };
 
@@ -50,6 +51,7 @@ namespace SECSparser
                 return data;
             }
 
+            // 遍历对象各属性。
             foreach (var jobItem in root[2].Items)
             {
                 // if 关键分支：单个对象必须是属性列表。
@@ -58,6 +60,7 @@ namespace SECSparser
 
                 var job = new S14F9_control_job_data();
 
+                // 遍历属性列表，按键值对解析关键字段。第一个必定为属性名，第二个为属性值。
                 foreach (var attr in jobItem.Items)
                 {
                     // if 关键分支：属性项格式应为 L[2] { key, value }。
@@ -70,14 +73,34 @@ namespace SECSparser
                         continue;
 
                     var key = (keyItem.GetString() ?? string.Empty).Trim();
+                    // 实际属性区分，后续可能会更改为映射表或反射方式以适应更多属性。
                     switch (key)
                     {
+                        // 对象唯一标识符
                         case "ObjID":
                             if (valueItem.Format == SecsFormat.ASCII)
                             {
                                 job.ObjID = valueItem.GetString() ?? string.Empty;
                             }
                             break;
+                        // 关联ProcessJob的List，即关联S16F15中的ProcessJobSpec列表
+                        case "ProcessingCtrlSpec":
+                            if(valueItem.Format == SecsFormat.List)
+                            {
+                                foreach (var ctrl in valueItem.Items)
+                                {
+                                    if (ctrl.Format == SecsFormat.ASCII)
+                                    {
+                                        var ctrlSpec = ctrl.GetString();
+                                        if (!string.IsNullOrWhiteSpace(ctrlSpec))
+                                        {
+                                            job.ProcessingCtrlSpec.Add(ctrlSpec.Trim());
+                                        }
+                                    }
+                                }
+                            }
+                            break;
+                        // 关联Carrier的List，当Carrier抵达是判断广联的ControlJob
                         case "CarrierInputSpec":
                             if (valueItem.Format == SecsFormat.List)
                             {

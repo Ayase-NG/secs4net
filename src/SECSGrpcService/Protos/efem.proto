@@ -29,6 +29,6 @@ service ReportGrpcService {
 	rpc ReportAlarm (.GY.EFEM.AlarmReportRequest) returns (.GY.EFEM.AlarmReply);
 
 	// 请求远程在线状态。
-	rpc RequestOnlineStatus (.GY.EFEM.NoParams) returns (.GY.EFEM.OnlineStatusReply);
+	rpc RequestOnlineStatus (.GY.EFEM.OnlineStatusRequest) returns (.GY.EFEM.OnlineStatusReply);
 }
 

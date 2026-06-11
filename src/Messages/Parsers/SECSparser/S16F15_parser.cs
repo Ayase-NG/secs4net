@@ -127,21 +127,27 @@ namespace SECSparser
                 }
 
                 // 4.E40 固定字段结构：True or False，表示是否自动作业。
-                var prProcessStart = pjItem[4];
-                if (prProcessStart.Format == SecsFormat.Boolean)
+                if (pjItem.Count > 4)
                 {
-                    pj.PRPROCESSSTART = prProcessStart.FirstValueOrDefault<bool>();
+                    var prProcessStart = pjItem[4];
+                    if (prProcessStart.Format == SecsFormat.Boolean)
+                    {
+                        pj.PRPROCESSSTART = prProcessStart.FirstValueOrDefault<bool>();
+                    }
                 }
 
                 // 5.E40 固定字段结构：存入CEID列表，定义停止触发事件。
-                var prPauseEvent = pjItem[5];
-                if (prPauseEvent.Format == SecsFormat.List)
+                if (pjItem.Count > 5)
                 {
-                    foreach (var ceidItem in prPauseEvent.Items)
+                    var prPauseEvent = pjItem[5];
+                    if (prPauseEvent.Format == SecsFormat.List)
                     {
-                        if (ceidItem.Format == SecsFormat.U4)
+                        foreach (var ceidItem in prPauseEvent.Items)
                         {
-                            pj.PRPAUSEEVENT.Add(ceidItem.FirstValueOrDefault<uint>(0));
+                            if (ceidItem.Format == SecsFormat.U4)
+                            {
+                                pj.PRPAUSEEVENT.Add(ceidItem.FirstValueOrDefault<uint>(0));
+                            }
                         }
                     }
                 }

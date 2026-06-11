@@ -12,12 +12,12 @@ namespace SECSdata
         /// <summary>
         /// 对象域（常见值如 Equipment）。
         /// </summary>
-        public string ObjectDomain { get; set; } = string.Empty;
+        public string OBJSPEC { get; set; } = string.Empty;
 
         /// <summary>
         /// 对象类型（常见值如 ControlJob）。
         /// </summary>
-        public string ObjectType { get; set; } = string.Empty;
+        public string OBJTYPE { get; set; } = string.Empty;
 
         /// <summary>
         /// Control Job 列表（最小骨架仅抽取关键字段）。
@@ -44,6 +44,11 @@ namespace SECSdata
         /// Control Job 对象标识（ObjID）。
         /// </summary>
         public string ObjID { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 处理工艺作业，处理PRJOB_ID。
+        /// </summary>
+        public List<string> ProcessingCtrlSpec { get; set; } = new();
 
         /// <summary>
         /// 载具输入列表（CarrierInputSpec）。

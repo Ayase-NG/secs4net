@@ -135,6 +135,7 @@ builder.Services.AddSingleton<IAlarmStateStorage>(sp => sp.GetRequiredService<Se
 builder.Services.AddSingleton<ITimeSyncStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
 builder.Services.AddSingleton<IS6F11SpoolStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
 builder.Services.AddSingleton<IPortContextStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
+builder.Services.AddSingleton<IJobPlanStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
 
 builder.Services.AddSingleton<IPrimaryMessageHandler, CommunicationPrimaryMessageHandler>();
 builder.Services.AddSingleton<IPrimaryMessageHandler, EventReportPrimaryMessageHandler>();
