@@ -156,7 +156,7 @@ namespace SECShandler.Functions
 
         /// <summary>
         /// 构建在线状态变更场景的 S6F11 数据。
-        /// 预设模板：CEID=1004（OnlineStateChanged），RPTID=1004。
+        /// 预设模板：CEID=1006（OnlineStateChanged），RPTID=1004。
         /// </summary>
         /// <param name="dataId">消息 DATAID。</param>
         /// <param name="fromState">切换前状态。</param>
@@ -175,12 +175,12 @@ namespace SECShandler.Functions
             return new S6F11_data
             {
                 DATAID = dataId,
-                CEID = 1004,    // 在线状态变更事件 CEID
+                CEID = 1006,    // 在线状态变更事件 CEID
                 Reports = new List<S6F11_report_data>
                 {
                     new S6F11_report_data
                     {
-                        RPTID = 1004,
+                        RPTID = 1006,
                         Values = new List<S6F11_parameter_data>
                         {
                             CreateParam("FROM_STATE", fromState, tryGetVid),
@@ -200,16 +200,19 @@ namespace SECShandler.Functions
             object? value,
             Func<string, (bool Found, ushort Vid)>? tryGetVid)
         {
+            // 方法关键节点：先统一参数键名，确保 CARRIERID/SLOTSLIST/PORTID 的兼容映射一致。
+            var normalizedName = NormalizeCpName(cpName);
+
             // if 关键分支：映射函数存在且命中时使用映射 VID。
             if (tryGetVid is not null)
             {
-                var mapped = tryGetVid(cpName);
+                var mapped = tryGetVid(normalizedName);
                 if (mapped.Found)
                 {
                     return new S6F11_parameter_data
                     {
                         VID = mapped.Vid,
-                        CPName = cpName,
+                        CPName = normalizedName,
                         CPVal = value?.ToString() ?? string.Empty
                     };
                 }
@@ -219,8 +222,30 @@ namespace SECShandler.Functions
             return new S6F11_parameter_data
             {
                 VID = 0,
-                CPName = cpName,
+                CPName = normalizedName,
                 CPVal = value?.ToString() ?? string.Empty
+            };
+        }
+
+        /// <summary>
+        /// 统一参数键名到标准业务名。
+        /// 作用：把同义字段别名归一化，减少 VID 映射失败概率。
+        /// </summary>
+        private static string NormalizeCpName(string cpName)
+        {
+            if (string.IsNullOrWhiteSpace(cpName))
+            {
+                return string.Empty;
+            }
+
+            var key = cpName.Trim();
+            return key.ToUpperInvariant() switch
+            {
+                "RFID" => "CARRIERID",
+                "SLOTS" => "SLOTSLIST",
+                "PORT" => "PORTID",
+                "LOADPORT" => "PORTID",
+                _ => key
             };
         }
     }

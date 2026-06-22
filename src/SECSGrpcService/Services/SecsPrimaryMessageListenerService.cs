@@ -76,12 +76,10 @@ public sealed class SecsPrimaryMessageListenerService : BackgroundService
         _connector.ConnectionChanged += (_, state) =>
         {
             _logger.LogInformation("SECS connection state changed: {State}", state);
-            Console.WriteLine($"SECS连接状态: {state}");
         };
 
         _logger.LogInformation("Starting SECS primary message listener. IsActive={IsActive}, Address={Ip}:{Port}, DeviceId={DeviceId}",
             options.Value.IsActive, options.Value.IpAddress, options.Value.Port, options.Value.DeviceId);
-        Console.WriteLine($"SECS持续监听已启动，模式:{(options.Value.IsActive ? "Active" : "Passive")}, 地址:{options.Value.IpAddress}:{options.Value.Port}, DeviceId:{options.Value.DeviceId}");
 
         try
         {
@@ -93,7 +91,6 @@ public sealed class SecsPrimaryMessageListenerService : BackgroundService
             {
                 var msg = primaryMessage.PrimaryMessage;
                 _logger.LogInformation("收到 PrimaryMessage: S{S}F{F}, ReplyExpected={ReplyExpected}", msg.S, msg.F, msg.ReplyExpected);
-                Console.WriteLine($"进入SECS持续监听，收到 PrimaryMessage: S{msg.S}F{msg.F}");
 
                 // 方法关键节点：入站关键消息先做追溯落库，便于生产问题追踪。
                 await SaveInboundInteractionIfKeyMessageAsync(msg, stoppingToken).ConfigureAwait(false);

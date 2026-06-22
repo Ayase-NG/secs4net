@@ -97,8 +97,8 @@ message LotCompletedMessage {
 
 // 通用事件上报（由 EFEM 传事件名 + 关键参数，本项目映射为 CEID 后再做 S6F11）。
 message GenericEventReportRequest {
-  // 事件名（通过 CEID.csv 映射到 CEID）。
-  string eventName = 1;
+  // CEID（通过 CEID.csv 映射到 CEID）。
+  uint32 CEID = 1;
 
   // 关键参数（键值对，键建议使用 CPName）。
   map<string, string> parameters = 2;
@@ -276,11 +276,13 @@ message QueryActiveAlarmsReply {
 
 // 结果上报回复。
 message ReportReply {
-  // 返回码：0=成功，其他=失败/异常。
-  int32 messageCode = 1;
+    // 返回码：0=成功，其他=失败
+      bool success = 1;
+  // 用来识别不同情况，例如1002CEID时：2001为存在Job中，2002不存在。
+  int32 code = 2;
 
   // 返回信息。
-  string message = 2;
+  string message = 3;
 }
 
 // 在线状态

@@ -1,6 +1,6 @@
 VID,Name,Category,Format,Description
 1000,LOTID,wafer,26P12345,批次号
-1002,RFID,wafer,RF100001,晶圆盒标签ID
+1002,CARRIERID,wafer,RF100001,晶圆盒标签ID
 1003,SLOTID,wafer,12,晶圆槽位号
 1004,SLOTSLIST,wafer,"1,3,4,5,12,23",槽位列表
 1006,PORTID,wafer,1,LoadPort编号
@@ -8,6 +8,6 @@ VID,Name,Category,Format,Description
 2001,MODE,setting,00,运行模式（00/01/02/03）
 3001,FROM_STATE,device,OnLineLocal,状态切换前状态
 3002,TO_STATE,device,OnLineRemote,状态切换后状态
-3005,ONLINE_STATE,device,OnLineRemote,设备当前在线状态（供S1F3查询）
+3005,ONLINE_STATE,device,OnLineRemote,设备当前在线状态（供S1F3查询，暂不使用）
 3003,WORKSTATION,device,Edge,工位状态
 3004,TRIGGER,device,RequestOnlineStatus,状态变化触发来源

@@ -53,7 +53,6 @@ public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
         }
 
         _logger.LogInformation("S2F41 START -> StartMeasurement trigger. LotId={LotId}, Mode={Mode}", wafer.LotId, _device.Mode);
-        Console.WriteLine($"S2F41 START 触发 gRPC StartMeasurement, LotId:{wafer.LotId}, Mode:{_device.Mode}");
 
         await _secsEfemGrpc.SendStartMeasurementToServiceAsync(
             targetServiceName,
@@ -70,7 +69,6 @@ public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
         var wafer = ToWaferMessage(data);
 
         _logger.LogInformation("S2F41 STOP -> StopMeasurement payload. LotId={LotId}, SlotId={SlotId}", wafer.LotId, wafer.SlotId);
-        Console.WriteLine($"S2F41 STOP 触发 gRPC StopMeasurement, LotId:{wafer.LotId}, SlotId:{wafer.SlotId}");
 
         await _secsEfemGrpc.SendStopMeasurementToServiceAsync(targetServiceName, targetGroup, targetClusters, targetUseHttps, wafer, fallbackAddresses, cancellationToken);
     }
@@ -81,7 +79,6 @@ public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
         var wafer = ToWaferMessage(data);
 
         _logger.LogInformation("S2F41 PAUSE -> PauseMeasurement payload. WaferId={WaferId}, SlotId={SlotId}, LotId={LotId}", wafer.WaferId, wafer.SlotId, wafer.LotId);
-        Console.WriteLine($"S2F41 PAUSE 触发 gRPC PauseMeasurement，WaferId:{wafer.WaferId}, SlotId:{wafer.SlotId}, LotId:{wafer.LotId}");
 
         await _secsEfemGrpc.SendPauseMeasurementToServiceAsync(targetServiceName, targetGroup, targetClusters, targetUseHttps, wafer, fallbackAddresses, cancellationToken);
     }
@@ -92,7 +89,6 @@ public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
         var wafer = ToWaferMessage(data);
 
         _logger.LogInformation("S2F41 RESUME -> ResumeMeasurement payload. WaferId={WaferId}, SlotId={SlotId}, LotId={LotId}", wafer.WaferId, wafer.SlotId, wafer.LotId);
-        Console.WriteLine($"S2F41 RESUME 触发 gRPC ResumeMeasurement，WaferId:{wafer.WaferId}, SlotId:{wafer.SlotId}, LotId:{wafer.LotId}");
 
         await _secsEfemGrpc.SendResumeMeasurementToServiceAsync(targetServiceName, targetGroup, targetClusters, targetUseHttps, wafer, fallbackAddresses, cancellationToken);
     }
@@ -118,24 +114,6 @@ public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
             lotIdFromCommand = byPortContext.LotId.Trim();
         }
 
-        // if 关键分支：同一 PORTID 已存在上下文且 LOTID 冲突时拒绝，避免串批次。
-        if (_portContextStorage.TryGetByPortId(portIdFromCommand, out var portContext)
-            && !string.IsNullOrWhiteSpace(lotIdFromCommand)
-            && !string.IsNullOrWhiteSpace(portContext.LotId)
-            && !string.Equals(portContext.LotId, lotIdFromCommand, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException($"PPSELECT rejected: PORTID/LOTID mismatch with ReportRFID context. PORTID={portIdFromCommand}, PPSELECT.LOTID={lotIdFromCommand}, RFID.LOTID={portContext.LotId}.");
-        }
-
-        // if 关键分支：同一 LOTID 已绑定其他 PORTID 时拒绝，防止跨 Port 串线。
-        if (!string.IsNullOrWhiteSpace(lotIdFromCommand)
-            && _portContextStorage.TryGetByLotId(lotIdFromCommand, out var lotContext)
-            && !string.IsNullOrWhiteSpace(lotContext.PortId)
-            && !string.Equals(lotContext.PortId, portIdFromCommand, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException($"PPSELECT rejected: LOTID already bound to different PORTID by ReportRFID context. LOTID={lotIdFromCommand}, PPSELECT.PORTID={portIdFromCommand}, RFID.PORTID={lotContext.PortId}.");
-        }
-
         // 方法关键节点：优先读取 S2F41 中的 MODE 参数（VID=2001 对应语义），
         // 在 PPSELECT 阶段提前下发到设备端作为运行前准备。
         var modeFromCommand = ReadStringParameter(data.Parameters, "MODE");
@@ -146,6 +124,28 @@ public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
 
         var slots = ReadSlotsParameter(data.Parameters).ToList();
         _device.SlotsList = slots;
+
+        // 方法关键节点：PPSELECT 接收后同步刷新 Port 上下文中的 LOTID，供后续 Carrier 事件与调度链路复用。
+        if (_portContextStorage.TryGetByPortId(portIdFromCommand, out var existingContext))
+        {
+            _portContextStorage.Upsert(new PortRuntimeContext
+            {
+                PortId = portIdFromCommand,
+                LotId = lotIdFromCommand,
+                CarrierId = existingContext.CarrierId,
+                SlotsList = slots.Count > 0 ? string.Join(',', slots) : existingContext.SlotsList
+            });
+        }
+        else
+        {
+            _portContextStorage.Upsert(new PortRuntimeContext
+            {
+                PortId = portIdFromCommand,
+                LotId = lotIdFromCommand,
+                CarrierId = string.Empty,
+                SlotsList = slots.Count > 0 ? string.Join(',', slots) : string.Empty
+            });
+        }
 
         var recipe = new RecipeMessage
         {
@@ -158,7 +158,6 @@ public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
 
         var slotsText = recipe.SlotsList.Count > 0 ? string.Join(',', recipe.SlotsList) : "<empty>";
         _logger.LogInformation("S2F41 PPSELECT -> ProcessProgramSelect payload. PPID={PPID}, Mode={Mode}, PortId={PortId}, LotId={LotId}, SlotsList={Slots}", recipe.PPID, recipe.Mode, recipe.PortId, recipe.LotId, slotsText);
-        Console.WriteLine($"S2F41 PPSELECT 触发 gRPC ProcessProgramSelect，PPID:{recipe.PPID}, Mode:{recipe.Mode}, PortId:{recipe.PortId}, LotId:{recipe.LotId}, SlotsList:{slotsText}");
 
         await _secsEfemGrpc.SendProcessProgramSelectToServiceAsync(targetServiceName, targetGroup, targetClusters, targetUseHttps, recipe, fallbackAddresses, cancellationToken);
     }
@@ -177,7 +176,6 @@ public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
 
         var slotsText = message.SlotsList.Count > 0 ? string.Join(',', message.SlotsList) : "<empty>";
         _logger.LogInformation("S3F17 -> SlotMapSelect payload. LotId={LotId}, SlotsList={Slots}", message.LotId, slotsText);
-        Console.WriteLine($"S3F17 触发 gRPC SlotMapSelect, LotId:{message.LotId}, SlotsList:{slotsText}");
 
         await _secsEfemGrpc.SendSlotMapSelectToServiceAsync(
             targetServiceName,

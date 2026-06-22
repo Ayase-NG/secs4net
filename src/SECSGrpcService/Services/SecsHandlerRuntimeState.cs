@@ -16,6 +16,8 @@ public sealed class SecsHandlerRuntimeState : IDevice, IReportStorage, IEventLin
     private volatile bool _allAlarmsEnabled = true;
     private readonly string _snapshotPath;
     private readonly FileSystemWatcher? _snapshotWatcher;
+    private readonly object _snapshotIoLock = new();
+    private volatile bool _suppressSnapshotReload;
     private DateTime? _lastHostTimeUtc;
     private string _lastHostTimeRaw = string.Empty;
     private readonly List<S6F11_data> _s6f11Spool = new();
@@ -366,8 +368,8 @@ public sealed class SecsHandlerRuntimeState : IDevice, IReportStorage, IEventLin
     public DeviceRunStatus RunStatus { get; set; } = DeviceRunStatus.Unknown;
     public string RECIPEID { get; set; } = string.Empty;
     public string CurrentLotId { get; set; } = string.Empty;
-    public string ModelNumber { get; set; } = "GWM-PW-20260407";
-    public string SoftwareRevision { get; set; } = "V20260407";
+    public string ModelNumber { get; set; } = "GWL-20260612";
+    public string SoftwareRevision { get; set; } = "SECS-20260612";
     public string Status { get; set; } = string.Empty;
 
     public Task StartProcessAsync(string? lotId) => Task.CompletedTask;
@@ -621,6 +623,12 @@ public sealed class SecsHandlerRuntimeState : IDevice, IReportStorage, IEventLin
             return;
         }
 
+        // if 关键分支：忽略进程内持久化触发的文件事件，避免把最新内存状态回滚为旧快照。
+        if (_suppressSnapshotReload)
+        {
+            return;
+        }
+
         TryLoadSnapshotFromDisk("hot-reload");
     }
 
@@ -654,21 +662,32 @@ public sealed class SecsHandlerRuntimeState : IDevice, IReportStorage, IEventLin
 
         try
         {
-            var directory = Path.GetDirectoryName(_snapshotPath);
-            if (!string.IsNullOrWhiteSpace(directory))
+            // 方法关键节点：持久化期间临时屏蔽热加载，避免 FileSystemWatcher 读到中间版本并覆盖当前内存态。
+            lock (_snapshotIoLock)
             {
-                Directory.CreateDirectory(directory);
-            }
+                _suppressSnapshotReload = true;
 
-            var json = JsonSerializer.Serialize(snapshot, new JsonSerializerOptions { WriteIndented = true });
-            var tempPath = _snapshotPath + ".tmp";
-            File.WriteAllText(tempPath, json);
-            File.Copy(tempPath, _snapshotPath, overwrite: true);
-            File.Delete(tempPath);
+                var directory = Path.GetDirectoryName(_snapshotPath);
+                if (!string.IsNullOrWhiteSpace(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                var json = JsonSerializer.Serialize(snapshot, new JsonSerializerOptions { WriteIndented = true });
+                var tempPath = _snapshotPath + ".tmp";
+                File.WriteAllText(tempPath, json);
+                File.Copy(tempPath, _snapshotPath, overwrite: true);
+                File.Delete(tempPath);
+            }
         }
         catch
         {
             // 兜底分支：持久化失败不影响主流程，避免阻塞协议处理。
+        }
+        finally
+        {
+            // finally 关键分支：无论持久化是否成功都恢复热加载能力，避免后续外部修改失效。
+            _suppressSnapshotReload = false;
         }
     }
 

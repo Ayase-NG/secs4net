@@ -16,8 +16,8 @@ service ReportGrpcService {
 	// 上报花篮取走事件（仅传 PORTID，由中间件补齐上下文）。
 	rpc ReportCarrierRemoved (.GY.EFEM.PortEventMessage) returns (.GY.EFEM.ReportReply);
 	
-	// 上报检测结果。
-	rpc ResultReport (.GY.EFEM.WaferMessage) returns (.GY.EFEM.ReportReply);
+	// 上报检测结果。（暂不启用，通过ReportEvent代替）
+	//rpc ResultReport (.GY.EFEM.WaferMessage) returns (.GY.EFEM.ReportReply);
 
 	// 上报整盒晶圆检测完成。
 	rpc ReportLotCompleted (.GY.EFEM.LotCompletedMessage) returns (.GY.EFEM.ReportReply);

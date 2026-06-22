@@ -105,11 +105,18 @@ namespace SECShandler.Functions
                 {
                     foreach (var rptId in data.DeletedRptIds)
                     {
+                        // 方法关键节点：打印删除的 RPTID，便于与 Host 下发内容对齐排查。
+                        Console.WriteLine($"S2F33 delete report. RPTID={rptId}");
                         reportStorage.RemoveReport(rptId);
                     }
 
                     foreach (var kvp in data.DefinedReports)
                     {
+                        // 方法关键节点：打印定义的 RPTID 与 VID 列表，便于确认运行态是否已生效。
+                        var vidText = kvp.Value is { Count: > 0 }
+                            ? string.Join(',', kvp.Value)
+                            : "<none>";
+                        Console.WriteLine($"S2F33 define report. RPTID={kvp.Key}, VIDs={vidText}");
                         reportStorage.AddOrUpdateReport(kvp.Key, kvp.Value);
                     }
                 }
@@ -136,6 +143,8 @@ namespace SECShandler.Functions
         {
             S2F35_data data;
             byte lrack = 0;
+            uint failedRptId = 0;
+            uint failedCeid = 0;
             var primaryMsg = primary.PrimaryMessage;
             try
             {
@@ -151,11 +160,16 @@ namespace SECShandler.Functions
 
             try
             {
+                // 方法关键节点：先打印当前已定义 RPTID 快照，用于排查 Host 认为已定义但运行态未命中的情况。
+                var allDefinedRptIds = TryGetAllDefinedRptIds(reportStorage);
+                Console.WriteLine($"S2F35 pre-check defined RPTIDs: {(allDefinedRptIds.Count > 0 ? string.Join(',', allDefinedRptIds) : "<none>")}");
+
                 foreach (var kvp in data.Links)
                 {
                     if (!eventLinkStorage.IsCeidValid(kvp.Key))
                     {
                         lrack = 4;
+                        failedCeid = kvp.Key;
                         break;
                     }
                     foreach (var rptId in kvp.Value)
@@ -163,6 +177,8 @@ namespace SECShandler.Functions
                         if (!reportStorage.ContainsReport(rptId))
                         {
                             lrack = 5;
+                            failedCeid = kvp.Key;
+                            failedRptId = rptId;
                             break;
                         }
                     }
@@ -182,7 +198,36 @@ namespace SECShandler.Functions
                 return;
             }
 
+            // 方法关键节点：S2F35 失败时输出失败明细，便于 Host 侧定位具体 CEID/RPTID。
+            if (lrack == 5)
+            {
+                Console.WriteLine($"S2F35 link rejected. LRACK=5, CEID={failedCeid}, RPTID={failedRptId} (undefined).");
+            }
+            else if (lrack == 4)
+            {
+                Console.WriteLine($"S2F35 link rejected. LRACK=4, CEID={failedCeid} (invalid).");
+            }
+
             await primary.TryReplyAsync(S2F36_builder.Build(lrack));
+        }
+
+        /// <summary>
+        /// 获取当前运行态中已定义的全部 RPTID。
+        /// 作用：用于 S2F35 校验前打印快照，辅助定位 LRACK=5 的根因。
+        /// </summary>
+        private static List<uint> TryGetAllDefinedRptIds(IReportStorage reportStorage)
+        {
+            var result = new List<uint>();
+            // 方法关键节点：RPTID 使用 U4，联调范围通常远小于 100000，顺序扫描开销可接受。
+            for (uint rptId = 1; rptId <= 100000; rptId++)
+            {
+                if (reportStorage.ContainsReport(rptId))
+                {
+                    result.Add(rptId);
+                }
+            }
+
+            return result;
         }
 
         /// <summary>
