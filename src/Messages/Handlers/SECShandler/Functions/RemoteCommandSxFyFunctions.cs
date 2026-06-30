@@ -111,7 +111,7 @@ namespace SECShandler.Functions
 
             try
             {
-                // 方法关键节点：先解析并校验 S16F15 消息结构。
+                // 先解析并校验 S16F15 消息结构。
                 var request = S16F15_parser.Parse(primary.PrimaryMessage);
 
                 // if 关键分支：S16F15 最小幂等保护，按 DATAID + PJID 集合防重。
@@ -120,7 +120,7 @@ namespace SECShandler.Functions
                 {
                     ack = 0;
                     var duplicatedReply = S16F16_builder.Build(ack);
-                    // 方法关键节点：命中幂等后立即异步回复 S16F16，告知 Host 本次请求已被接收过且无需重复处理。
+                    // 命中幂等后立即异步回复 S16F16，告知 Host 本次请求已被接收过且无需重复处理。
                     await primary.TryReplyAsync(duplicatedReply, cancellationToken).ConfigureAwait(false);
                     return;
                 }
@@ -129,7 +129,7 @@ namespace SECShandler.Functions
                 var hasValidPj = request.ProcessJobs.Any(p => !string.IsNullOrWhiteSpace(p.PJID));
                 ack = device.IsOnline == DeviceOnlineState.OnLineRemote && hasValidPj ? (byte)0 : (byte)1;
 
-                // 方法关键节点：S16F15 仅做计划缓存，不直接执行；等待 S14F9 关联与 Carrier 到达触发。
+                // S16F15 仅做计划缓存，不直接执行；等待 S14F9 关联与 Carrier 到达触发。
                 if (ack == 0)
                 {
                     var validJobs = request.ProcessJobs.Where(p => !string.IsNullOrWhiteSpace(p.PJID)).ToList();
@@ -141,7 +141,7 @@ namespace SECShandler.Functions
                     {
                         foreach (var processJob in validJobs)
                         {
-                            // 方法关键节点：将 PJ 关键字段落入运行态缓存，供后续 S14F9 关联和 Carrier 到达调度使用。
+                            // 将 PJ 关键字段落入运行态缓存，供后续 S14F9 关联和 Carrier 到达调度使用。
                             var plan = new ProcessJobPlan
                             {
                                 PJID = processJob.PJID.Trim(),
@@ -173,7 +173,7 @@ namespace SECShandler.Functions
             var reply = S16F16_builder.Build(ack);
             try
             {
-                // 方法关键节点：优先使用 Primary 通道异步回发 S16F16，确保与当前事务上下文一一对应。
+                // 优先使用 Primary 通道异步回发 S16F16，确保与当前事务上下文一一对应。
                 await primary.TryReplyAsync(reply, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception)
@@ -200,7 +200,7 @@ namespace SECShandler.Functions
 
             try
             {
-                // 方法关键节点：先解析并校验 S14F9 消息结构。
+                // 先解析并校验 S14F9 消息结构。
                 var request = S14F9_parser.Parse(primary.PrimaryMessage);
 
                 // if 关键分支：S14F9 最小幂等保护，按 ObjectDomain/ObjectType + ObjID 集合防重。
@@ -209,7 +209,7 @@ namespace SECShandler.Functions
                 {
                     ack = 0;
                     var duplicatedReply = S14F10_builder.Build(ack);
-                    // 方法关键节点：命中幂等后立即异步回复 S14F10，避免 Host 重发导致控制流重复入库。
+                    // 命中幂等后立即异步回复 S14F10，避免 Host 重发导致控制流重复入库。
                     await primary.TryReplyAsync(duplicatedReply, cancellationToken).ConfigureAwait(false);
                     return;
                 }
@@ -218,7 +218,7 @@ namespace SECShandler.Functions
                 var hasValidCj = request.ControlJobs.Any(j => !string.IsNullOrWhiteSpace(j.ObjID));
                 ack = device.IsOnline == DeviceOnlineState.OnLineRemote && hasValidCj ? (byte)0 : (byte)1;
 
-                // 方法关键节点：S14F9 进行 CJ-PJ 关联校验并缓存，不直接下发动作。
+                // S14F9 进行 CJ-PJ 关联校验并缓存，不直接下发动作。
                 if (ack == 0)
                 {
                     var managedCount = 0;
@@ -296,7 +296,7 @@ namespace SECShandler.Functions
                             portContextStorage.Upsert(matched);
                         }
 
-                        // 方法关键节点：CJ 校验通过后落库，等待 Carrier 到达时由 ReportRFID 触发调度。
+                        // CJ 校验通过后落库，等待 Carrier 到达时由 ReportRFID 触发调度。
                         jobPlanStorage.UpsertControlJob(new ControlJobPlan
                         {
                             CJID = cj.ObjID.Trim(),
@@ -328,7 +328,7 @@ namespace SECShandler.Functions
             var reply = S14F10_builder.Build(ack);
             try
             {
-                // 方法关键节点：优先走当前 Primary 会话异步回复 S14F10，保持请求-应答关联。
+                // 优先走当前 Primary 会话异步回复 S14F10，保持请求-应答关联。
                 await primary.TryReplyAsync(reply, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception)
@@ -353,7 +353,7 @@ namespace SECShandler.Functions
             if (!primaryMessage.PrimaryMessage.ReplyExpected)
                 return;
 
-            // 方法关键节点：统一错误参数确认码映射，减少 Host 侧歧义。
+            // 统一错误参数确认码映射，减少 Host 侧歧义。
             var parameterAcks = new Dictionary<string, byte>();
             if (!string.IsNullOrWhiteSpace(errorParam))
             {

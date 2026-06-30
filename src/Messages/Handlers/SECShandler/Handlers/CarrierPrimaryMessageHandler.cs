@@ -29,7 +29,7 @@ namespace SECShandler.Handlers
 
         public async Task HandleAsync(SecsGem secsGem, PrimaryMessageWrapper primaryMessage, CancellationToken cancellationToken)
         {
-            // 方法关键节点：将 S3F17 分发到 CarrierSxFyFunctions 进行解析与状态更新。
+            // 将 S3F17 分发到 CarrierSxFyFunctions 进行解析与状态更新。
             await CarrierSxFyFunctions.HandleS3F17Async(primaryMessage, _device, _measurementDispatcher, cancellationToken);
         }
     }

@@ -30,7 +30,7 @@ public sealed class VidMap
         var loaded = ParseCsvToMap(csvPath, logger);
         ReplaceMappings(loaded);
 
-        // 方法关键节点：开启文件监听，支持 VID.csv 热更新。
+        // 开启文件监听，支持 VID.csv 热更新。
         var dir = Path.GetDirectoryName(csvPath);
         var name = Path.GetFileName(csvPath);
         if (!string.IsNullOrWhiteSpace(dir) && Directory.Exists(dir))

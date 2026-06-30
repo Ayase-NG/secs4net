@@ -23,7 +23,7 @@ namespace SECShandler.Functions
             IMeasurementDispatcher? measurementDispatcher,
             CancellationToken cancellationToken)
         {
-            // 方法关键节点：先解析 S3F17 请求数据。
+            // 先解析 S3F17 请求数据。
             S3F17_data data;
             try
             {
@@ -53,7 +53,7 @@ namespace SECShandler.Functions
                 device.SlotsList = data.SlotMap;
             }
 
-            // 方法关键节点：S3F17 解析成功后，触发独立的 gRPC 槽位选择链路。
+            // S3F17 解析成功后，触发独立的 gRPC 槽位选择链路。
             if (measurementDispatcher is not null)
             {
                 try

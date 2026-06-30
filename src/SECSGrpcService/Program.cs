@@ -43,7 +43,7 @@ builder.Services.AddGrpc();
 builder.Services.AddGrpcReflection();
 
 // Nacos 服务注册（配置来源：secsgrpcsettings.json -> nacos 节点）
-// 方法关键节点：同时注册 PlcClient，供 S1F3 读取 PLC Holding 寄存器。
+// 同时注册 PlcClient，供 S1F3 读取 PLC Holding 寄存器。
 builder.Services.AddNacosAspNet(builder.Configuration, "nacos")
     .AddSingleton<PlcClient>();
 

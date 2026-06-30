@@ -19,7 +19,7 @@ public sealed class InMemoryIdempotencyGuard : IIdempotencyGuard
         var now = DateTime.UtcNow;
         var composite = $"{scope}:{key}";
 
-        // 方法关键节点：先清理已过期键，避免字典无限增长。
+        // 先清理已过期键，避免字典无限增长。
         foreach (var item in _entries)
         {
             if (item.Value <= now)

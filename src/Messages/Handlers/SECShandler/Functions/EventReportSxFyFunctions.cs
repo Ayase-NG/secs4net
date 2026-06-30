@@ -17,19 +17,19 @@ namespace SECShandler.Functions
     /// </summary>
     public static class EventReportSxFyFunctions
     {
-        // 方法关键节点：缓存 SVID/VID 映射，避免每次 S1F3 都重复读盘。
+        // 缓存 SVID/VID 映射，避免每次 S1F3 都重复读盘。
         private static readonly Lazy<Dictionary<uint, SvidMapRow>> SvidMap = new(LoadSvidMapFromCandidates);
 
-        // 方法关键节点：保证 PlcClient 的订阅初始化只执行一次。
+        // 保证 PlcClient 的订阅初始化只执行一次。
         private static int _plcSubscriptionStarted;
 
-        // 方法关键节点：SVID 值缓存（短 TTL），避免高频重复读取 PLC。
+        // SVID 值缓存（短 TTL），避免高频重复读取 PLC。
         private static readonly Dictionary<uint, SvidCacheEntry> SvidValueCache = new();
 
-        // 方法关键节点：保护缓存并发访问的锁对象。
+        // 保护缓存并发访问的锁对象。
         private static readonly object SvidValueCacheLock = new();
 
-        // 方法关键节点：缓存过期时长（最小骨架固定值，后续可配置化）。
+        // 缓存过期时长（最小骨架固定值，后续可配置化）。
         private static readonly TimeSpan SvidCacheTtl = TimeSpan.FromMilliseconds(300);
 
         /// <summary>
@@ -38,7 +38,7 @@ namespace SECShandler.Functions
         /// </summary>
         public static async Task HandleS1F3ReplyAsync(SecsGem secsGem, IDevice device, PrimaryMessageWrapper primary, PlcClient? plcClient = null)
         {
-            // 方法关键节点：先解析 S1F3 请求，拿到请求的 SVID 列表。
+            // 先解析 S1F3 请求，拿到请求的 SVID 列表。
             var request = S1F3_parser.Parse(primary.PrimaryMessage);
 
             // if 关键分支：空请求（All SVID）时，使用当前映射表中的全部 SVID。
@@ -46,7 +46,7 @@ namespace SECShandler.Functions
                 ? SvidMap.Value.Keys.OrderBy(x => x).ToList()
                 : request.SVIDList;
 
-            // 方法关键节点：统一调用解析入口，内部完成缓存命中、分组批量读取与结果合并。
+            // 统一调用解析入口，内部完成缓存命中、分组批量读取与结果合并。
             var resolved = await ResolveSvidValuesAsync(requestedSvids, device, plcClient).ConfigureAwait(false);
 
             var response = new S1F4_data
@@ -59,7 +59,7 @@ namespace SECShandler.Functions
                 }).ToList()
             };
 
-            // 方法关键节点：通过 builder 统一构建 S1F4 并回包。
+            // 通过 builder 统一构建 S1F4 并回包。
             var reply = S1F4_builder.Build(response);
 
             try
@@ -105,14 +105,14 @@ namespace SECShandler.Functions
                 {
                     foreach (var rptId in data.DeletedRptIds)
                     {
-                        // 方法关键节点：打印删除的 RPTID，便于与 Host 下发内容对齐排查。
+                        // 打印删除的 RPTID，便于与 Host 下发内容对齐排查。
                         Console.WriteLine($"S2F33 delete report. RPTID={rptId}");
                         reportStorage.RemoveReport(rptId);
                     }
 
                     foreach (var kvp in data.DefinedReports)
                     {
-                        // 方法关键节点：打印定义的 RPTID 与 VID 列表，便于确认运行态是否已生效。
+                        // 打印定义的 RPTID 与 VID 列表，便于确认运行态是否已生效。
                         var vidText = kvp.Value is { Count: > 0 }
                             ? string.Join(',', kvp.Value)
                             : "<none>";
@@ -160,7 +160,7 @@ namespace SECShandler.Functions
 
             try
             {
-                // 方法关键节点：先打印当前已定义 RPTID 快照，用于排查 Host 认为已定义但运行态未命中的情况。
+                // 先打印当前已定义 RPTID 快照，用于排查 Host 认为已定义但运行态未命中的情况。
                 var allDefinedRptIds = TryGetAllDefinedRptIds(reportStorage);
                 Console.WriteLine($"S2F35 pre-check defined RPTIDs: {(allDefinedRptIds.Count > 0 ? string.Join(',', allDefinedRptIds) : "<none>")}");
 
@@ -198,7 +198,7 @@ namespace SECShandler.Functions
                 return;
             }
 
-            // 方法关键节点：S2F35 失败时输出失败明细，便于 Host 侧定位具体 CEID/RPTID。
+            // S2F35 失败时输出失败明细，便于 Host 侧定位具体 CEID/RPTID。
             if (lrack == 5)
             {
                 Console.WriteLine($"S2F35 link rejected. LRACK=5, CEID={failedCeid}, RPTID={failedRptId} (undefined).");
@@ -218,7 +218,7 @@ namespace SECShandler.Functions
         private static List<uint> TryGetAllDefinedRptIds(IReportStorage reportStorage)
         {
             var result = new List<uint>();
-            // 方法关键节点：RPTID 使用 U4，联调范围通常远小于 100000，顺序扫描开销可接受。
+            // RPTID 使用 U4，联调范围通常远小于 100000，顺序扫描开销可接受。
             for (uint rptId = 1; rptId <= 100000; rptId++)
             {
                 if (reportStorage.ContainsReport(rptId))
@@ -283,7 +283,7 @@ namespace SECShandler.Functions
                 return;
             }
 
-            // 方法关键节点：启用成功后打印当前生效事件映射（CEID -> RPTID -> VID），便于现场快速确认配置。
+            // 启用成功后打印当前生效事件映射（CEID -> RPTID -> VID），便于现场快速确认配置。
             if (eac == 0)
             {
                 PrintEnabledEventMappings(data, eventLinkStorage, eventEnableStorage, reportStorage);
@@ -407,7 +407,7 @@ namespace SECShandler.Functions
                 return result;
             }
 
-            // 方法关键节点：创建 provider 上下文并准备数据源实现。
+            // 创建 provider 上下文并准备数据源实现。
             var context = new SvidResolveContext(device, plcClient);
             var providers = new ISvidValueProvider[]
             {
@@ -469,7 +469,7 @@ namespace SECShandler.Functions
                     plcClient.StartSubZeromqChanged();
                 }
 
-                // 方法关键节点：调用 GY.PLC.Comm 提供的 ReadHolding 读取寄存器。
+                // 调用 GY.PLC.Comm 提供的 ReadHolding 读取寄存器。
                 var (success, _, value) = await plcClient.ReadHolding(holdingAddress).ConfigureAwait(false);
 
                 // if 关键分支：读取失败或无值时返回空字符串。

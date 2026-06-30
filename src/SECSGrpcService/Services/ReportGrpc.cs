@@ -61,7 +61,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
     /// </summary>
     public override async Task<ReportReply> ReportRFID(CarrierMessage request, ServerCallContext context)
     {
-        // 方法关键节点：打印入站 gRPC 载荷，便于联调时快速核对设备上报字段和值。
+        // 打印入站 gRPC 载荷，便于联调时快速核对设备上报字段和值。
         var inboundSlots = request.SlotsList.Count > 0 ? string.Join(',', request.SlotsList) : "<empty>";
         _logger.LogInformation(
             "gRPC IN ReportRFID. Peer={Peer}, CARRIERID={CarrierId}, LOTID={LotId}, PORTID={PortId}, SLOTSLIST={SlotsList}",
@@ -73,18 +73,18 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
 
         var slotsText = request.SlotsList.Count > 0 ? string.Join(',', request.SlotsList) : string.Empty;
 
-        // 方法关键节点：旧 ReportRFID 请求统一转换为 ReportEvent(CEID=1002)。
+        // 旧 ReportRFID 请求统一转换为 ReportEvent(CEID=1002)。
         var eventRequest = new GenericEventReportRequest
         {
             CEID = 1002
         };
-        // 方法关键节点：对外统一使用 CARRIERID 作为载具字段名。
+        // 对外统一使用 CARRIERID 作为载具字段名。
         eventRequest.Parameters["CARRIERID"] = request.RFID ?? string.Empty;
         eventRequest.Parameters["LOTID"] = request.LotId ?? string.Empty;
         eventRequest.Parameters["PORTID"] = request.PortId ?? string.Empty;
         eventRequest.Parameters["SLOTSLIST"] = slotsText;
 
-        // 方法关键节点：异步复用 ReportEvent 统一链路，避免维护两套 1002 上报逻辑。
+        // 异步复用 ReportEvent 统一链路，避免维护两套 1002 上报逻辑。
         return await ReportEvent(eventRequest, context).ConfigureAwait(false);
     }
 
@@ -93,7 +93,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
     /// </summary>
     public override async Task<ReportReply> ReportCarrierRemoved(PortEventMessage request, ServerCallContext context)
     {
-        // 方法关键节点：打印入站 gRPC 载荷，便于联调时确认载具取走事件参数。
+        // 打印入站 gRPC 载荷，便于联调时确认载具取走事件参数。
         _logger.LogInformation("gRPC IN ReportCarrierRemoved. Peer={Peer}, PORTID={PortId}", context.Peer, request.PortId);
 
         var portId = (request.PortId ?? string.Empty).Trim();
@@ -146,7 +146,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
             };
         }
 
-        // 方法关键节点：按 Host 运行态绑定的首个 RPTID 生成 CarrierRemoved 事件并发送 S6F11。
+        // 按 Host 运行态绑定的首个 RPTID 生成 CarrierRemoved 事件并发送 S6F11。
         var rptId = linkedRptIds[0];
         var data = ActiveReportSxFyFunctions.BuildGenericEventReport(
             _secsGemContext.GetNextDataId(),
@@ -178,17 +178,17 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
     /// </summary>
     public override async Task<ReportReply> ReportEvent(GenericEventReportRequest request, ServerCallContext context)
     {
-        // 方法关键节点：打印入站 gRPC 通用事件参数，便于排查 CEID 对应值是否正确传入。
+        // 打印入站 gRPC 通用事件参数，便于排查 CEID 对应值是否正确传入。
         _logger.LogInformation(
             "gRPC IN ReportEvent. Peer={Peer}, CEID={CEID}, Params={Params}",
             context.Peer,
             request.CEID,
             ToParameterLogText(request.Parameters));
 
-        // 方法关键节点：先标准化事件参数键名，统一为 CARRIERID/SLOTSLIST/PORTID，提升后续映射兼容性。
+        // 先标准化事件参数键名，统一为 CARRIERID/SLOTSLIST/PORTID，提升后续映射兼容性。
         //var normalizedParameters = NormalizeEventParameters(request.Parameters);
 
-        // 方法关键节点：通用事件上报前先尝试用事件参数增量刷新 Port 上下文，避免后续 PPSELECT 校验读取到旧值。
+        // 通用事件上报前先尝试用事件参数增量刷新 Port 上下文，避免后续 PPSELECT 校验读取到旧值。
         TryUpdatePortContextFromEventParameters(request.Parameters);
 
         // if 关键分支：请求 CEID 未在 CEID.csv 中定义时直接拒绝，避免上报未注册事件。
@@ -202,7 +202,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
             };
         }
 
-        // 方法关键节点：按请求 CEID 查询 Host 运行态绑定的 RPTID，保持 S2F35 动态绑定语义。
+        // 按请求 CEID 查询 Host 运行态绑定的 RPTID，保持 S2F35 动态绑定语义。
         var linkedRptIds = _eventLinkStorage.GetRptIdsForCeid(request.CEID);
         if (linkedRptIds is null || linkedRptIds.Count == 0)
         {
@@ -217,12 +217,12 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
         // if 关键分支：在线状态变化事件走固定模板，字段仅使用 FROM_STATE/TO_STATE/TRIGGER，保持语义稳定。
         if (request.CEID == 1006)
         {
-            // 方法关键节点：兼容按 VID 键名上传（3001/3002/3004）与按业务键名上传（FROM_STATE/TO_STATE/TRIGGER）。
+            // 兼容按 VID 键名上传（3001/3002/3004）与按业务键名上传（FROM_STATE/TO_STATE/TRIGGER）。
             var fromState = ReadParameter(request.Parameters, "FROM_STATE", "3001") ?? string.Empty;
             var toState = ReadParameter(request.Parameters, "TO_STATE", "3002") ?? string.Empty;
             var trigger = ReadParameter(request.Parameters, "TRIGGER", "3004") ?? string.Empty;
 
-            // 方法关键节点：1006 使用固定模板组包，避免通用参数波动影响状态事件结构。
+            // 1006 使用固定模板组包，避免通用参数波动影响状态事件结构。
             var stateChangedData = ActiveReportSxFyFunctions.BuildOnlineStateChangedReport(
                 _secsGemContext.GetNextDataId(),
                 fromState,
@@ -230,7 +230,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
                 trigger,
                 TryGetVid);
 
-            // 方法关键节点：异步发送 1006 事件，上报是否成功仍由 S2F33/S2F35/S2F37 门禁决定。
+            // 异步发送 1006 事件，上报是否成功仍由 S2F33/S2F35/S2F37 门禁决定。
             var stateSent = await _activeSxFyDispatcher.SendS6F11Async(stateChangedData, context.CancellationToken).ConfigureAwait(false);
             return new ReportReply
             {
@@ -240,7 +240,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
             };
         }
 
-        // 方法关键节点：最小实现取首个绑定 RPTID 作为通用事件上报 RPTID。
+        // 最小实现取首个绑定 RPTID 作为通用事件上报 RPTID。
         var rptId = linkedRptIds[0];
         var data = ActiveReportSxFyFunctions.BuildGenericEventReport(
             _secsGemContext.GetNextDataId(),
@@ -249,23 +249,23 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
             request.Parameters,
             TryGetVid);
 
-        // 方法关键节点：当 CEID=1001（WaferResultReported）时，按 S16F15/S14F9 缓存计划仅校验 CarrierId 是否存在。
+        // 当 CEID=1001（WaferResultReported）时，按 S16F15/S14F9 缓存计划仅校验 CarrierId 是否存在。
         var isCarrierPlanned = true;
         if (request.CEID == 1001)
         {
             isCarrierPlanned = TryValidateCarrierInPlannedJobsForResultEvent(request.Parameters);
         }
 
-        // 方法关键节点：异步发送通用事件 S6F11，上报是否成功仍受 S2F33/S2F35/S2F37 门禁控制。
+        // 异步发送通用事件 S6F11，上报是否成功仍受 S2F33/S2F35/S2F37 门禁控制。
         var sent = await _activeSxFyDispatcher.SendS6F11Async(data, context.CancellationToken).ConfigureAwait(false);
 
         // if 关键分支：仅在成功上报后执行事件后置处理，确保运行态与 Host 已接收事件一致。
         if (sent)
         {
-            // 方法关键节点：按事件 CEID 处理 Port 上下文生命周期（如 LotCompleted/CarrierRemoved 清理）。
+            // 按事件 CEID 处理 Port 上下文生命周期（如 LotCompleted/CarrierRemoved 清理）。
             TryFinalizePortContextByEvent(request.CEID, request.Parameters);
 
-            // 方法关键节点：CEID=1002 视为 Carrier 到达，按 S14/S16 缓存计划匹配后下发 PPSELECT。
+            // CEID=1002 视为 Carrier 到达，按 S14/S16 缓存计划匹配后下发 PPSELECT。
             if (request.CEID == 1002)
             {
                 var carrier = BuildCarrierMessageFromEventParameters(request.Parameters);
@@ -273,7 +273,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
                 // if 关键分支：仅在能解析到有效 CARRIERID 时触发调度，避免误触发。
                 if (!string.IsNullOrWhiteSpace(carrier.RFID))
                 {
-                    // 方法关键节点：异步按 S16F15/S14F9 缓存计划仅下发 PPSELECT，并使用任务中的槽位列表。
+                    // 异步按 S16F15/S14F9 缓存计划仅下发 PPSELECT，并使用任务中的槽位列表。
                     await TryDispatchProcessProgramSelectOnCarrierEventAsync(carrier, context.CancellationToken).ConfigureAwait(false);
                 }
             }
@@ -319,12 +319,12 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
             }
         }
 
-        // 方法关键节点：统一标准字段，优先保留标准键，缺失时从别名提升。
+        // 统一标准字段，优先保留标准键，缺失时从别名提升。
         PromoteCanonicalParameter(normalized, "CARRIERID", "RFID");
         PromoteCanonicalParameter(normalized, "SLOTSLIST", "SLOTS", "slotsList");
         PromoteCanonicalParameter(normalized, "PORTID", "PORT", "LOADPORT");
 
-        // 方法关键节点：移除已归一化的别名，避免同义参数重复进入 S6F11。
+        // 移除已归一化的别名，避免同义参数重复进入 S6F11。
         normalized.Remove("RFID");
         normalized.Remove("SLOTS");
         normalized.Remove("slotsList");
@@ -471,7 +471,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
                     }
                 };
 
-                // 方法关键节点：异步下发 PPSELECT，并使用任务缓存槽位（格式与 gRPC 一致："1,2,4,8"）。
+                // 异步下发 PPSELECT，并使用任务缓存槽位（格式与 gRPC 一致："1,2,4,8"）。
                 await _measurementDispatcher.DispatchProcessProgramSelectAsync(ppSelect, cancellationToken).ConfigureAwait(false);
                 _logger.LogInformation("ProcessProgramSelect dispatched by CEID=1002. CJID={CJID}, PJID={PJID}, CarrierId={CarrierId}, PortId={PortId}, LotId={LotId}, SlotsList={SlotsList}", cj.CJID, pj.PJID, carrierId, request.PortId, request.LotId, string.Join(',', slots));
                 return;
@@ -491,7 +491,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
             return false;
         }
 
-        // 方法关键节点：先匹配 S14F9 的 ControlJob CarrierInputSpec，命中即视为在计划内。
+        // 先匹配 S14F9 的 ControlJob CarrierInputSpec，命中即视为在计划内。
         var hitInControlJobs = _jobPlanStorage
             .GetAllControlJobs()
             .Any(cj => cj.CarrierInputSpec.Any(x => string.Equals(x, carrierId, StringComparison.OrdinalIgnoreCase)));
@@ -548,7 +548,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
 
     public override async Task<AlarmReply> ReportAlarm(AlarmReportRequest request, ServerCallContext context)
     {
-        // 方法关键节点：打印入站 gRPC 报警参数，便于联调确认报警字段透传。
+        // 打印入站 gRPC 报警参数，便于联调确认报警字段透传。
         _logger.LogInformation(
             "gRPC IN ReportAlarm. Peer={Peer}, Source={Source}, AlarmId={AlarmId}, AlarmCode={AlarmCode}, AlarmText={AlarmText}, Severity={Severity}",
             context.Peer,
@@ -560,7 +560,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
 
         _alarmStore.Upsert(request);
 
-        // 方法关键节点：维护当前激活报警状态，供 S5F5/S5F6 查询链路使用。
+        // 维护当前激活报警状态，供 S5F5/S5F6 查询链路使用。
         _alarmStateStorage.UpsertAlarm(
             request.AlarmId,
             request.AlarmCode is { Length: > 0 } ? request.AlarmCode.Span[0] : (byte)0x80,
@@ -621,7 +621,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
     /// </summary>
     public override async Task<ReportReply> ReportLotCompleted(LotCompletedMessage request, ServerCallContext context)
     {
-        // 方法关键节点：打印入站 gRPC 批次完成参数，便于联调确认结束态字段。
+        // 打印入站 gRPC 批次完成参数，便于联调确认结束态字段。
         _logger.LogInformation(
             "gRPC IN ReportLotCompleted. Peer={Peer}, PORTID={PortId}, LOTID={LotId}, STATUS={Status}",
             context.Peer,
@@ -673,10 +673,10 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
     /// </summary>
     public override async Task<OnlineStatusReply> RequestOnlineStatus(OnlineStatusRequest request, ServerCallContext context)
     {
-        // 方法关键节点：打印入站 gRPC 在线切换请求，便于定位状态切换来源。
+        // 打印入站 gRPC 在线切换请求，便于定位状态切换来源。
         _logger.LogInformation("gRPC IN RequestOnlineStatus. Peer={Peer}, Source={Source}, CurrentState={CurrentState}", context.Peer, request.Source, _device.IsOnline);
 
-        // 方法关键节点：1006 在线状态变化事件的触发来源固定为 Device，避免外部参数污染。
+        // 1006 在线状态变化事件的触发来源固定为 Device，避免外部参数污染。
         const string stateChangeTrigger = "Device";
 
         // if 关键分支：当前处于 OnLineLocal 时允许切换为 OnLineRemote。本地转远程
@@ -686,7 +686,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
             _device.IsOnline = DeviceOnlineState.OnLineRemote;
             var toState = _device.IsOnline.ToString();
 
-            // 方法关键节点：状态切换成功后，按预设模板发送 OnlineStateChanged 的 S6F11（CEID=1021）。
+            // 状态切换成功后，按预设模板发送 OnlineStateChanged 的 S6F11（CEID=1021）。
             var stateChangedData = ActiveReportSxFyFunctions.BuildOnlineStateChangedReport(
                 _secsGemContext.GetNextDataId(),
                 fromState,
@@ -717,7 +717,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
             _device.IsOnline = DeviceOnlineState.OnLineLocal;
             var toState = _device.IsOnline.ToString();
 
-            // 方法关键节点：状态切换成功后，按预设模板发送 OnlineStateChanged 的 S6F11（CEID=1021）。
+            // 状态切换成功后，按预设模板发送 OnlineStateChanged 的 S6F11（CEID=1021）。
             var stateChangedData = ActiveReportSxFyFunctions.BuildOnlineStateChangedReport(
                 _secsGemContext.GetNextDataId(),
                 fromState,
@@ -882,7 +882,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
                     ppSelect.Parameters["SLOTSLIST"] = Secs4Net.Item.A(string.Join(',', slots));
                 }
 
-                // 方法关键节点：异步下发 PPSELECT，先把配方/批次/端口/槽位上下文写入设备侧，作为 START 前置条件。
+                // 异步下发 PPSELECT，先把配方/批次/端口/槽位上下文写入设备侧，作为 START 前置条件。
                 await _measurementDispatcher.DispatchProcessProgramSelectAsync(ppSelect, cancellationToken).ConfigureAwait(false);
 
                 var start = new S2F41_data
@@ -895,7 +895,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
                     }
                 };
 
-                // 方法关键节点：在 PPSELECT 成功后异步下发 START，驱动设备执行对应 ProcessJob。
+                // 在 PPSELECT 成功后异步下发 START，驱动设备执行对应 ProcessJob。
                 await _measurementDispatcher.DispatchStartMeasurementAsync(start, cancellationToken).ConfigureAwait(false);
 
                 _jobPlanStorage.MarkProcessJobAutoStarted(pj.PJID, request.PortId ?? string.Empty, request.LotId ?? string.Empty);
@@ -917,7 +917,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
             return;
         }
 
-        // 方法关键节点：按业务参数名读取上下文字段，不依赖 VID 或 RPTID 映射。
+        // 按业务参数名读取上下文字段，不依赖 VID 或 RPTID 映射。
         var portId = ReadParameter(parameters, "PORTID", "PORT", "LOADPORT")?.Trim();
         var lotId = ReadParameter(parameters, "LOTID")?.Trim();
         var carrierId = ReadParameter(parameters, "CARRIERID", "RFID")?.Trim();
@@ -937,7 +937,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
             return;
         }
 
-        // 方法关键节点：增量合并上下文；新值为空时保留旧值，确保不同事件可分步补齐上下文字段。
+        // 增量合并上下文；新值为空时保留旧值，确保不同事件可分步补齐上下文字段。
         if (_portContextStorage.TryGetByPortId(portId, out var existing))
         {
             _portContextStorage.Upsert(new PortRuntimeContext
@@ -1004,7 +1004,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
             return "<empty>";
         }
 
-        // 方法关键节点：按键名排序后输出，确保同一请求的日志顺序稳定。
+        // 按键名排序后输出，确保同一请求的日志顺序稳定。
         return string.Join(", ", parameters
             .OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
             .Select(kv => $"{kv.Key}={kv.Value}"));

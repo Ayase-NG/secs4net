@@ -101,7 +101,7 @@ namespace SECShandler.Functions
 
             try
             {
-                // 方法关键节点：先解析并校验 S1F15 消息结构。
+                // 先解析并校验 S1F15 消息结构。
                 _ = S1F15_parser.Parse(primary.PrimaryMessage);
             }
             catch
@@ -157,7 +157,7 @@ namespace SECShandler.Functions
 
             try
             {
-                // 方法关键节点：先解析并校验 S1F17 消息结构。
+                // 先解析并校验 S1F17 消息结构。
                 _ = S1F17_parser.Parse(primary.PrimaryMessage);
             }
             catch

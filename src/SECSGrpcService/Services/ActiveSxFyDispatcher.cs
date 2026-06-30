@@ -59,7 +59,7 @@ public sealed class ActiveSxFyDispatcher : IActiveSxFyDispatcher
             return false;
         }
 
-        // 方法关键节点：按 Host 运行态配置（S2F33/35）动态展开 RPTID，不依赖设备端固定 RPTID。
+        // 按 Host 运行态配置（S2F33/35）动态展开 RPTID，不依赖设备端固定 RPTID。
         var hostResolvedData = BuildHostResolvedS6F11Data(data);
 
         // if 关键分支：会话不可用时先缓存，等待后台补发。
@@ -70,7 +70,7 @@ public sealed class ActiveSxFyDispatcher : IActiveSxFyDispatcher
             return false;
         }
 
-        // 方法关键节点：统一从配置读取超时/重试参数，避免现场手改代码。
+        // 统一从配置读取超时/重试参数，避免现场手改代码。
         var retrySection = _configuration.GetSection("SecsDispatch:S6F11");
         var maxAttempts = Math.Max(1, retrySection.GetValue<int>("MaxAttempts", 2));
         var retryDelayMs = Math.Max(0, retrySection.GetValue<int>("RetryDelayMs", 0));
@@ -88,7 +88,7 @@ public sealed class ActiveSxFyDispatcher : IActiveSxFyDispatcher
 
             try
             {
-                // 方法关键节点：由 builder 统一编码 S6F11 消息体。
+                // 由 builder 统一编码 S6F11 消息体。
                 var s6f11 = S6F11_builder.Build(hostResolvedData);
                 var reply = await secsGem.SendAsync(s6f11, cancellationToken).ConfigureAwait(false);
 
@@ -97,7 +97,7 @@ public sealed class ActiveSxFyDispatcher : IActiveSxFyDispatcher
                 {
                     _logger.LogInformation("S6F11 sent and S6F12 received. CEID={CEID}, Attempt={Attempt}", data.CEID, attempt);
 
-                    // 方法关键节点：关键出站消息闭环成功后记录追溯。
+                    // 关键出站消息闭环成功后记录追溯。
                     await SaveOutboundS6F11HistoryAsync(hostResolvedData, hcack: 0, cancellationToken).ConfigureAwait(false);
                     return true;
                 }

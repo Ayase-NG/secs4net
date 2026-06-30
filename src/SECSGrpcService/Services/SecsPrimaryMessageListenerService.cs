@@ -92,7 +92,7 @@ public sealed class SecsPrimaryMessageListenerService : BackgroundService
                 var msg = primaryMessage.PrimaryMessage;
                 _logger.LogInformation("收到 PrimaryMessage: S{S}F{F}, ReplyExpected={ReplyExpected}", msg.S, msg.F, msg.ReplyExpected);
 
-                // 方法关键节点：入站关键消息先做追溯落库，便于生产问题追踪。
+                // 入站关键消息先做追溯落库，便于生产问题追踪。
                 await SaveInboundInteractionIfKeyMessageAsync(msg, stoppingToken).ConfigureAwait(false);
 
                 try
@@ -149,7 +149,7 @@ public sealed class SecsPrimaryMessageListenerService : BackgroundService
             return;
         }
 
-        // 方法关键节点：其他消息权限由各 Handler/SxFyFunction 负责，并向 Host 返回明确应答。
+        // 其他消息权限由各 Handler/SxFyFunction 负责，并向 Host 返回明确应答。
         await handler.HandleAsync(secsGem, primaryMessage, cancellationToken);
     }
 

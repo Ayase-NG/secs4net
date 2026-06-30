@@ -16,7 +16,7 @@ namespace SECSbuilder
         /// <returns>可发送的 SecsMessage。</returns>
         public static SecsMessage Build(byte oflack)
         {
-            // 方法关键节点：构造标准 S1F16 回包。
+            // 构造标准 S1F16 回包。
             return new SecsMessage(1, 16, replyExpected: false)
             {
                 Name = "OffLineAcknowledge",

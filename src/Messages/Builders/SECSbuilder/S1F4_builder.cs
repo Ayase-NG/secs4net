@@ -17,7 +17,7 @@ namespace SECSbuilder
         /// <returns>可发送的 SecsMessage。</returns>
         public static SecsMessage Build(IEnumerable<S1F4_status_data>? statusList = null)
         {
-            // 方法关键节点：先准备 S1F4 的 SV 项列表。
+            // 先准备 S1F4 的 SV 项列表。
             var svItems = new List<Item>();
 
             // if 关键分支：仅当传入列表不为空时才逐项编码。
@@ -36,7 +36,7 @@ namespace SECSbuilder
                 }
             }
 
-            // 方法关键节点：构造并返回标准 S1F4 响应消息。
+            // 构造并返回标准 S1F4 响应消息。
             return new SecsMessage(1, 4, replyExpected: false)
             {
                 Name = "SelectedEquipmentStatusData",
@@ -54,7 +54,7 @@ namespace SECSbuilder
             // if 关键分支：参数为空时直接抛出标准异常。
             ArgumentNullException.ThrowIfNull(data);
 
-            // 方法关键节点：复用主构建方法，保持编码逻辑单一来源。
+            // 复用主构建方法，保持编码逻辑单一来源。
             return Build(data.StatusList);
         }
     }

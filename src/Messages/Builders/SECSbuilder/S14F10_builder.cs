@@ -15,7 +15,7 @@ namespace SECSbuilder
         /// <param name="ack">确认码：0=接受，1=拒绝。</param>
         public static SecsMessage Build(byte ack)
         {
-            // 方法关键节点：构造标准 S14F10 回包。
+            // 构造标准 S14F10 回包。
             return new SecsMessage(14, 10, replyExpected: false)
             {
                 Name = "S14F10Acknowledge",

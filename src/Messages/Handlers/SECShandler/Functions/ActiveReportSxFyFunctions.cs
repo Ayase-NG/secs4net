@@ -26,7 +26,7 @@ namespace SECShandler.Functions
             string? slotsText,
             Func<string, (bool Found, ushort Vid)>? tryGetVid = null)
         {
-            // 方法关键节点：按既有约定组装 CEID/RPTID（RFID/Mapping）。
+            // 按既有约定组装 CEID/RPTID（RFID/Mapping）。
             return new S6F11_data
             {
                 DATAID = dataId,
@@ -101,7 +101,7 @@ namespace SECShandler.Functions
             string? result,
             Func<string, (bool Found, ushort Vid)>? tryGetVid = null)
         {
-            // 方法关键节点：按既有约定组装 CEID/RPTID（ResultReport）。
+            // 按既有约定组装 CEID/RPTID（ResultReport）。
             return new S6F11_data
             {
                 DATAID = dataId,
@@ -171,7 +171,7 @@ namespace SECShandler.Functions
             string? trigger,
             Func<string, (bool Found, ushort Vid)>? tryGetVid = null)
         {
-            // 方法关键节点：按预设模板组装在线状态变更事件。
+            // 按预设模板组装在线状态变更事件。
             return new S6F11_data
             {
                 DATAID = dataId,
@@ -200,7 +200,7 @@ namespace SECShandler.Functions
             object? value,
             Func<string, (bool Found, ushort Vid)>? tryGetVid)
         {
-            // 方法关键节点：先统一参数键名，确保 CARRIERID/SLOTSLIST/PORTID 的兼容映射一致。
+            // 先统一参数键名，确保 CARRIERID/SLOTSLIST/PORTID 的兼容映射一致。
             var normalizedName = NormalizeCpName(cpName);
 
             // if 关键分支：映射函数存在且命中时使用映射 VID。

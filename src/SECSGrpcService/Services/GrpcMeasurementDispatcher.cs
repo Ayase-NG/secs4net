@@ -31,7 +31,7 @@ public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
         var (targetServiceName, targetGroup, targetClusters, targetUseHttps, fallbackAddresses) = GetTargetOptions();
         var wafer = ToWaferMessage(data);
 
-        // 方法关键节点：START 前拉取一次状态，避免设备状态不满足时误启动。
+        // START 前拉取一次状态，避免设备状态不满足时误启动。
         var status = await _secsEfemGrpc.GetStatusFromServiceAsync(
             targetServiceName,
             targetGroup,
@@ -98,14 +98,14 @@ public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
         var (targetServiceName, targetGroup, targetClusters, targetUseHttps, fallbackAddresses) = GetTargetOptions();
         var wafer = ToWaferMessage(data);
 
-        // 方法关键节点：PPSELECT 必须携带 PORTID，作为多 LoadPort 场景的唯一上下文锚点。
+        // PPSELECT 必须携带 PORTID，作为多 LoadPort 场景的唯一上下文锚点。
         var portIdFromCommand = ReadStringParameter(data.Parameters, "PORTID", "PORT", "LOADPORT")?.Trim();
         if (string.IsNullOrWhiteSpace(portIdFromCommand))
         {
             throw new InvalidOperationException("PPSELECT rejected: missing required parameter PORTID.");
         }
 
-        // 方法关键节点：PPSELECT 的 LOTID 优先取命令参数；缺失时允许从 ReportRFID 已写入的 Port 上下文兜底。
+        // PPSELECT 的 LOTID 优先取命令参数；缺失时允许从 ReportRFID 已写入的 Port 上下文兜底。
         var lotIdFromCommand = (wafer.LotId ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(lotIdFromCommand)
             && _portContextStorage.TryGetByPortId(portIdFromCommand, out var byPortContext)
@@ -114,7 +114,7 @@ public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
             lotIdFromCommand = byPortContext.LotId.Trim();
         }
 
-        // 方法关键节点：优先读取 S2F41 中的 MODE 参数（VID=2001 对应语义），
+        // 优先读取 S2F41 中的 MODE 参数（VID=2001 对应语义），
         // 在 PPSELECT 阶段提前下发到设备端作为运行前准备。
         var modeFromCommand = ReadStringParameter(data.Parameters, "MODE");
         if (!string.IsNullOrWhiteSpace(modeFromCommand))
@@ -125,7 +125,7 @@ public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
         var slots = ReadSlotsParameter(data.Parameters).ToList();
         _device.SlotsList = slots;
 
-        // 方法关键节点：PPSELECT 接收后同步刷新 Port 上下文中的 LOTID，供后续 Carrier 事件与调度链路复用。
+        // PPSELECT 接收后同步刷新 Port 上下文中的 LOTID，供后续 Carrier 事件与调度链路复用。
         if (_portContextStorage.TryGetByPortId(portIdFromCommand, out var existingContext))
         {
             _portContextStorage.Upsert(new PortRuntimeContext
@@ -166,7 +166,7 @@ public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
     {
         var (targetServiceName, targetGroup, targetClusters, targetUseHttps, fallbackAddresses) = GetTargetOptions();
 
-        // 方法关键节点：S3F17 对应独立槽位选择链路，和 PPSELECT 分离。
+        // S3F17 对应独立槽位选择链路，和 PPSELECT 分离。
         var message = new SlotMapSelectMessage
         {
             PortId = string.Empty,

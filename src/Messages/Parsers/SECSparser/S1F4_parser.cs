@@ -24,7 +24,7 @@ namespace SECSparser
                 throw new ArgumentException($"Invalid message type. Expected S1F4, but got S{msg.S}F{msg.F}.");
             }
 
-            // 方法关键节点：初始化返回对象并记录解析时间。
+            // 初始化返回对象并记录解析时间。
             var data = new S1F4_data
             {
                 timeStamp = DateTime.UtcNow
@@ -96,7 +96,7 @@ namespace SECSparser
                         break;
                 }
 
-                // 方法关键节点：S1F4 中通常不显式携带 SVID，这里按顺序占位为 0。
+                // S1F4 中通常不显式携带 SVID，这里按顺序占位为 0。
                 data.StatusList.Add(new S1F4_status_data
                 {
                     SVID = 0,
