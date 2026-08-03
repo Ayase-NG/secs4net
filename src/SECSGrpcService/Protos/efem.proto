@@ -1,4 +1,4 @@
-﻿syntax = "proto3";
+syntax = "proto3";
 
 
 package GY.SECS;
@@ -10,8 +10,8 @@ import "common.proto";
 
 // 结果上报服务。
 service ReportGrpcService {
-	// 设备获取晶圆盒后，Mapping结束后上报RFID和Mapping结果。
-	rpc ReportRFID (.GY.EFEM.CarrierMessage) returns (.GY.EFEM.ReportReply);
+	// 设备获取晶圆盒后，Mapping结束后上报RFID和Mapping结果。暂不使用，合并到通用事件上报
+	//rpc ReportRFID (.GY.EFEM.CarrierMessage) returns (.GY.EFEM.ReportReply);
 
 	// 上报花篮取走事件（仅传 PORTID，由中间件补齐上下文）。
 	rpc ReportCarrierRemoved (.GY.EFEM.PortEventMessage) returns (.GY.EFEM.ReportReply);
@@ -31,4 +31,3 @@ service ReportGrpcService {
 	// 请求远程在线状态。
 	rpc RequestOnlineStatus (.GY.EFEM.OnlineStatusRequest) returns (.GY.EFEM.OnlineStatusReply);
 }
-

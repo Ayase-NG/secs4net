@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 18
-VisualStudioVersion = 18.4.11626.88
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.37502.11 d17.14
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{47372419-BB0F-4D47-A9A9-F93EE7551CB9}"
 EndProject
@@ -63,6 +63,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Config", "Config", "{E1D4DF
 		src\Messages\Config\CEID.csv = src\Messages\Config\CEID.csv
 		src\Messages\Config\CEIDS.json = src\Messages\Config\CEIDS.json
 		src\Messages\Config\Host联调检查清单.md = src\Messages\Config\Host联调检查清单.md
+		src\Messages\Builders\SECSbuilder\S6F11_builder.cs = src\Messages\Builders\SECSbuilder\S6F11_builder.cs
 		sql.txt = sql.txt
 		src\Messages\Config\VID.csv = src\Messages\Config\VID.csv
 		src\Messages\Config\流程.md = src\Messages\Config\流程.md
