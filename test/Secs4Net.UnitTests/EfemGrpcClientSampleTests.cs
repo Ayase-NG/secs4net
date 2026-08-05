@@ -34,7 +34,7 @@ public class EfemGrpcClientSampleTests
         {
         }, cancellationToken: cts.Token);
 
-        var recipeReply = await client.ProcessProgramSelectAsync(new global::SECSGrpcService.RecipeMessage
+        var recipeReply = await client.RecipeSelectAsync(new global::SECSGrpcService.RecipeMessage
         {
             PPID = "RECIPE-UT",
             //PPID = "PP-UT-01"
@@ -46,7 +46,7 @@ public class EfemGrpcClientSampleTests
         var stopReply = await client.StopMeasurementAsync(wafer, cancellationToken: cts.Token);
 
         _output.WriteLine($"StartMeasurement => code={startReply.MessageCode}, message={startReply.Message}");
-        _output.WriteLine($"ProcessProgramSelect => code={recipeReply.MessageCode}, message={recipeReply.Message}");
+        _output.WriteLine($"RecipeSelectSelect => code={recipeReply.MessageCode}, message={recipeReply.Message}");
         _output.WriteLine($"PauseMeasurement => code={pauseReply.MessageCode}, message={pauseReply.Message}");
         _output.WriteLine($"ResumeMeasurement => code={resumeReply.MessageCode}, message={resumeReply.Message}");
         _output.WriteLine($"StopMeasurement => code={stopReply.MessageCode}, message={stopReply.Message}");

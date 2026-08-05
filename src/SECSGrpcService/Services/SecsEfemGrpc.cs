@@ -1,4 +1,4 @@
-﻿using Grpc.Core;
+using Grpc.Core;
 using Grpc.Net.Client;
 
 namespace SECSGrpcService.Services
@@ -313,17 +313,17 @@ namespace SECSGrpcService.Services
                 {
                     using var channel = GrpcChannel.ForAddress(address);
                     var client = new global::SECSGrpcService.EFEM.EFEMClient(channel.CreateCallInvoker());
-                    var call = client.ProcessProgramSelectAsync(recipeMessage, cancellationToken: CreateLinkedToken(cancellationToken));
+                    var call = client.RecipeSelectAsync(recipeMessage, cancellationToken: CreateLinkedToken(cancellationToken));
                     var reply = await call.ResponseAsync.ConfigureAwait(false);
-                    _logger.LogInformation("ProcessProgramSelect -> {Address} returned {Code}: {Msg}", address, reply.MessageCode, reply.Message);
+                    _logger.LogInformation("RecipeSelect -> {Address} returned {Code}: {Msg}", address, reply.MessageCode, reply.Message);
                 }
                 catch (RpcException rex)
                 {
-                    _logger.LogError(rex, "ProcessProgramSelect RPC to {Address} failed", address);
+                    _logger.LogError(rex, "RecipeSelect RPC to {Address} failed", address);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to send ProcessProgramSelect to {Address}", address);
+                    _logger.LogError(ex, "Failed to send RecipeSelect to {Address}", address);
                 }
 
                 if (cancellationToken.IsCancellationRequested) break;
