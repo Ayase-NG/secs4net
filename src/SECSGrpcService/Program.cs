@@ -143,6 +143,7 @@ builder.Services.AddSingleton<IPrimaryMessageHandler, RemoteCommandPrimaryMessag
 builder.Services.AddSingleton<IPrimaryMessageHandler, CarrierPrimaryMessageHandler>();
 builder.Services.AddSingleton<IPrimaryMessageHandler, AlarmPrimaryMessageHandler>();
 builder.Services.AddSingleton<IPrimaryMessageHandler, TimeSyncPrimaryMessageHandler>();
+builder.Services.AddSingleton<IPrimaryMessageHandler, RecipePrimaryMessageHandler>();
 
 // 注册 SECS PrimaryMessage 持续监听服务（后台服务），与 gRPC 服务并行运行。主要
 builder.Services.AddHostedService<SecsPrimaryMessageListenerService>();
