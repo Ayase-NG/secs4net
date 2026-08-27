@@ -147,7 +147,11 @@ namespace SECShandler.Functions
         /// 处理 S1F17（Request ON-LINE）并回复 S1F18。
         /// ONLACK 约定：0=接受并进入在线本地，1=拒绝。
         /// </summary>
-        public static async Task HandleS1F17ReplyAsync(SecsGem secsGem, IDevice device, PrimaryMessageWrapper primary)
+        public static async Task HandleS1F17ReplyAsync(
+            SecsGem secsGem,
+            IDevice device,
+            PrimaryMessageWrapper primary,
+            IVidValueStorage? vidValueStorage = null)
         {
             var data = new S1F18_data
             {
@@ -179,6 +183,8 @@ namespace SECShandler.Functions
             if (device.IsOnline is DeviceOnlineState.OffLine)
             {
                 device.IsOnline = DeviceOnlineState.OnLineLocal;
+                // 上线成功后同步更新在线状态 VID，供状态查询和事件报告复用。
+                vidValueStorage?.UpsertByVid(1002, "Online");
                 data.ONLACK = 0;
             }
             else
@@ -191,10 +197,12 @@ namespace SECShandler.Functions
 
             try
             {
+                // 异步关联原 S1F17 事务发送上线结果。
                 await primary.TryReplyAsync(reply).ConfigureAwait(false);
             }
             catch (Exception)
             {
+                // 事务回复失败时异步发送独立 S1F18，避免 Host 持续等待。
                 await secsGem.SendAsync(reply).ConfigureAwait(false);
             }
         }
