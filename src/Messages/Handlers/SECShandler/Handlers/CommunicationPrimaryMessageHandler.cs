@@ -7,10 +7,15 @@ namespace SECShandler.Handlers
     public sealed class CommunicationPrimaryMessageHandler : IPrimaryMessageHandler
     {
         private readonly IDevice _device;
+        private readonly IVidValueStorage? _vidValueStorage;
 
-        public CommunicationPrimaryMessageHandler(IDevice device)
+        /// <summary>
+        /// 初始化通信消息处理器及其设备和 VID 状态依赖。
+        /// </summary>
+        public CommunicationPrimaryMessageHandler(IDevice device, IVidValueStorage? vidValueStorage = null)
         {
             _device = device;
+            _vidValueStorage = vidValueStorage;
         }
 
         // 本处理器负责处理 S1F1（Are You There?）、S1F13（Establish Communications）、S1F15（Request OFF-LINE）和 S1F17（Request ON-LINE），注册进 SupportedMessages。
@@ -40,7 +45,12 @@ namespace SECShandler.Handlers
                     await CommunicationSxFyFunctions.HandleS1F15ReplyAsync(secsGem, _device, primaryMessage);
                     break;
                 case (1, 17):
-                    await CommunicationSxFyFunctions.HandleS1F17ReplyAsync(secsGem, _device, primaryMessage);
+                    // 异步处理上线请求，并同步更新设备在线状态 VID。
+                    await CommunicationSxFyFunctions.HandleS1F17ReplyAsync(
+                        secsGem,
+                        _device,
+                        primaryMessage,
+                        _vidValueStorage);
                     break;
             }
         }
