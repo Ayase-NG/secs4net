@@ -49,17 +49,20 @@ public sealed class AlarmStore
     public void Upsert(AlarmReportRequest request)
     {
         var source = string.IsNullOrWhiteSpace(request.Source) ? "<unknown>" : request.Source.Trim();
+        // 将 gRPC int32 字段统一转换为当前报警存储模型使用的无符号 ID 和单字节代码。
+        uint alarmId = unchecked((uint)request.AlarmId);
+        byte alarmCode = unchecked((byte)request.AlarmCode);
         var activeAlarm = new ActiveAlarm
         {
             Source = source,
-            AlarmId = request.AlarmId,
-            AlarmCode = request.AlarmCode ?? ByteString.Empty,
+            AlarmId = alarmId,
+            AlarmCode = ByteString.CopyFrom(new[] { alarmCode }),
             AlarmText = request.AlarmText ?? string.Empty,
             Severity = (int)request.Severity == 0 ? (AlarmSeverity)2 : request.Severity,
             OccurredAtUnixMs = request.OccurredAtUnixMs
         };
 
-        _active[Key(source, request.AlarmId)] = activeAlarm;
+        _active[Key(source, alarmId)] = activeAlarm;
 
         try
         {
@@ -71,8 +74,8 @@ public sealed class AlarmStore
             var history = new AlarmHistoryRecord
             {
                 Source = source,
-                AlarmId = request.AlarmId,
-                AlarmCode = (request.AlarmCode ?? ByteString.Empty).ToByteArray(),
+                AlarmId = alarmId,
+                AlarmCode = new[] { alarmCode },
                 AlarmText = request.AlarmText ?? string.Empty,
                 Severity = (int)activeAlarm.Severity,
                 OccurredAtUnixMs = occurredAt,

@@ -450,12 +450,16 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
             request.AlarmText,
             request.Severity);
 
+        // 将 gRPC int32 报警字段转换为内部及 SECS 消息要求的无符号类型。
+        uint alarmId = unchecked((uint)request.AlarmId);
+        byte alarmCode = unchecked((byte)request.AlarmCode);
+
         _alarmStore.Upsert(request);
 
         // 维护当前激活报警状态，供 S5F5/S5F6 查询链路使用。
         _alarmStateStorage.UpsertAlarm(
-            request.AlarmId,
-            request.AlarmCode is { Length: > 0 } ? request.AlarmCode.Span[0] : (byte)0x80,
+            alarmId,
+            alarmCode,
             request.AlarmText ?? string.Empty);
 
         _logger.LogInformation(
@@ -469,9 +473,9 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
         Console.WriteLine($"Time：{request.OccurredAtUnixMs}进入了报警上报 ReportAlarm，source:{request.Source}, alarmId:{request.AlarmId}, alarmCode:{request.AlarmCode}");
 
         // Host 配置禁用该报警 ID 时不发送 S5F1，仅保留本地追溯。
-        if (!_alarmEnableStorage.IsAlarmEnabled(request.AlarmId))
+        if (!_alarmEnableStorage.IsAlarmEnabled(alarmId))
         {
-            _logger.LogInformation("Alarm send disabled by host config. ALID={ALID}", request.AlarmId);
+            _logger.LogInformation("Alarm send disabled by host config. ALID={ALID}", alarmId);
             return new AlarmReply
             {
                 MessageCode = 0,
@@ -483,11 +487,11 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
         // 存在活动 SECS 会话时发送 S5F1，否则仅记录警告并返回。
         if (_secsGemContext.TryGet(out var secsGem) && secsGem is not null)
         {
-            var alarmCodeText = ToAlarmCodeString(request.AlarmCode);
+            string alarmCodeText = request.AlarmCode.ToString(System.Globalization.CultureInfo.InvariantCulture);
             var s5f1Data = new S5F1_data
             {
-                ALCD = request.AlarmCode is { Length: > 0 } ? request.AlarmCode.Span[0] : (byte)0x80,
-                ALID = request.AlarmId,
+                ALCD = alarmCode,
+                ALID = alarmId,
                 ALTX = string.IsNullOrWhiteSpace(request.AlarmText)
                     ? (string.IsNullOrWhiteSpace(alarmCodeText) ? "报警已解除" : alarmCodeText)
                     : $"{alarmCodeText}:{request.AlarmText}"
@@ -798,7 +802,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
 
     /// <summary>
     /// 将报警代码字节转换为可读字符串。
-    /// 作用：优先按 UTF8 解码，失败时回退十六进制，便于日志与上报文本统一展示。
+    /// 作用：优先按 UTF8 解码，失败时回退十六进制，便于查询结果统一展示。
     /// </summary>
     private static string ToAlarmCodeString(ByteString alarmCode)
     {
