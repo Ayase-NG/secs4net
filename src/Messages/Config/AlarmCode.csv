@@ -1,0 +1,154 @@
+Code,AlarmText,Description
+1,E-Stop 1,急停1
+2,E-Stop 2,急停2
+3,Door Lock 1,门锁1
+4,Door Lock 2,门锁2
+5,Door Lock 3,门锁3
+6,Door Lock 4,门锁4
+7,Door Lock 5,门锁5
+8,Door Lock 6,门锁6
+9,Door Lock 7,门锁7
+10,Door Lock 8,门锁8
+11,Door Lock 9,门锁9
+12,Door Lock 10,门锁10
+13,Positive pressure too low,正气压不足
+14,Negative pressure too low,负气压不足
+15,Robot Arm X?axis reset error persists,机械臂X轴复位后仍报错
+16,Motor enable failed on Robot Arm X?axis,机械臂X轴电机使能未成功
+18,Robot Arm X?axis homing failed,机械臂X轴回零不成功
+19,Robot Arm comm. error,机械臂通讯错误
+20,Robot Arm comm. error,机械臂通讯错误
+21,Robot Arm action timeout,机械臂动作超时
+22,Robot Arm task number invalid,机械臂任务号无效
+23,Robot Arm X?axis positioning timeout.,机械臂X定位超时
+24,Robot Arm X?axis homing timeout.,机械臂X回零超时
+25,Robot Arm X?axis absolute move without homing.,机械臂X未回零执行了绝对定位
+26,Robot Arm X?axis rotation response timeout.,机械臂X转动响应超时
+27,LoadPort01 host test mode signal missing.,LoadPort01未收到上位机测试模式信号
+28,LoadPort02 host test mode signal missing.,LoadPort02未收到上位机测试模式信号
+29,LoadPort01 status read timeout.,LoadPort01读取状态超时
+30,LoadPort01 communication timeout,LoadPort01通讯超时
+31,LoadPort02 status read timeout,LoadPort02读取状态超时
+32,LoadPort02 communication timeout.,LoadPort02通讯超时
+33,LoadPort01 RFID send failed,LoadPort01 RFID发送失败
+34,LoadPort02 RFID send failed.,LoadPort02 RFID发送失败
+35,Position read timeout / axis not home.,读位置超时或轴不在原点
+36,ALN wafer sensor status mismatch.,ALN单元有无晶圆传感器状态与设备状态不一致
+37,WaferID capture complete signal missing.,未收到WaferID拍照完成信号
+38,R?axis re?enable error persists.,R轴重新使能仍有报错
+39,R?axis re?enable failed.,R轴重新使能未成功
+40,EDGE gripper unclamped.,EDGE夹爪未夹紧
+41,R?axis homing failed.,R轴回零不成功
+42,EDGE gripper not open.,EDGE夹爪未打开
+43,EDGE wafer sensor status mismatch.,EDGE单元有无晶圆传感器状态与设备状态不一致
+44,R?axis not at receive pos.,R轴未到接收位
+45,Roundness capture signal missing.,未收到上位机Roundness拍照信号
+46,NOTCH capture signal missing,未收到上位机NOTCH拍照信号
+47,2nd NOTCH capture signal missing.,未收到上位机第二次NOTCH拍照信号
+48,Span length capture signal missing,未收到上位机幅长拍照信号
+49,Edge capture signal missing,未收到上位机Edge拍照信号
+50,Edge Z?axis movement out of safe range,EdgeZ轴上升下降未在安全范围
+51,EDGE axis reset error persists,EDGE轴复位仍报错
+52,EDGE axis enable fault.,EDGE轴使能异常
+53,EDGE board sensor signal conflict,EDGE有无板信号异常冲突
+54,WaferID capture complete timeout.,WaferID相机拍照完成超时
+55,1st Notch capture complete timeout.,第一次Notch相机拍照完成超时
+56,2nd Notch capture complete timeout.,第二次notch相机拍照完成超时
+57,Arc light source on fault.,弧形光源打开异常
+58,EDGE cam 1st ready timeout.,EDGE相机第一次准备信号超时
+59,EDGE cam 2nd ready timeout.,EDGE相机第二次准备信号超时
+60,EDGE cam capture complete timeout.,EDGE相机拍照完成信号超时
+61,Edge_R positioning timeout.,Edge_R定位超时
+62,Edge_R homing timeout.,Edge_R回零超时
+63,Edge_R absolute move without homing.,Edge_R未回零执行了绝对定位
+64,Edge_R rotation response timeout.,Edge_R转动响应超时
+65,Edge_Y positioning timeout.,Edge_Y定位超时
+66,Edge_Y homing timeout.,Edge_Y回零超时
+67,Edge_Y absolute move without homing.,Edge_Y未回零执行了绝对定位
+68,Edge_Y rotation response timeout.,Edge_Y转动响应超时
+69,Edge_Z positioning timeout.,Edge_Z定位超时
+70,Edge_Z homing timeout.,Edge_Z回零超时
+71,Edge_Z absolute move without homing.,Edge_Z未回零执行了绝对定位
+72,Edge_Z rotation response timeout.,Edge_Z转动响应超时
+73,Edge_Grip1 positioning timeout.,Edge_Grip1定位超时
+74,Edge_Grip1 homing timeout.,Edge_Grip1回零超时
+75,Edge_Grip1 absolute move without homing.,Edge_Grip1未回零执行了绝对定位
+76,Edge_Grip1 rotation response timeout.,Edge_Grip1转动响应超时
+77,Edge_Grip2 positioning timeout.,Edge_Grip2定位超时
+78,Edge_Grip2 homing timeout.,Edge_Grip2回零超时
+79,Edge_Grip2 absolute move without homing.,Edge_Grip2未回零执行了绝对定位
+80,Edge_Grip2 rotation response timeout.,Edge_Grip2转动响应超时
+81,Edge_Grip3 positioning timeout.,Edge_Grip3定位超时
+82,Edge_Grip3 homing timeout.,Edge_Grip3回零超时
+83,Edge_Grip3 absolute move without homing.,Edge_Grip3未回零执行了绝对定位
+84,Edge_Grip3 rotation response timeout.,Edge_Grip3转动响应超时
+85,Edge_Grip4 positioning timeout.,Edge_Grip4定位超时
+86,Edge_Grip4 homing timeout.,Edge_Grip4回零超时
+87,Edge_Grip4 absolute move without homing.,Edge_Grip4未回零执行了绝对定位
+88,Edge_Grip4 rotation response timeout.,Edge_Grip4转动响应超时
+89,Edge_Grip5 positioning timeout.,Edge_Grip5定位超时
+90,Edge_Grip5 homing timeout.,Edge_Grip5回零超时
+91,Edge_Grip5 absolute move without homing.,Edge_Grip5未回零执行了绝对定位
+92,Edge_Grip5 rotation response timeout.,Edge_Grip5转动响应超时
+93,BS front/back camera not ready,BS正背面相机未准备好
+94,BS upper/lower light source start fault.,BS上下表面光源启动异常
+95,BS 1st front/back capture complete signal fault.,BS第一次正背面拍照完成信号异常
+96,BS 2nd front/back capture complete signal fault,BS第二次正背面拍照完成信号异常
+97,BS 3rd front/back capture complete signal fault.,BS第三次正背面拍照完成信号异常
+98,BS capture process end signal fault.,BS拍照流程结束信号异常
+99,BS re?inspection start signal fault,BS复检流程开始信号异常
+100,BS re?inspection capture complete signal fault.,BS复检拍照完成信号异常
+101,BS 3rd front/back capture complete signal fault.,BS第三次正背面拍照完成信号异常
+102,BS front/back axes reset error persists.,BS正背面各轴错误复位仍报错
+103,BS front/back axes enable fault.,BS正背面各轴使能异常
+104,BS front/back board presence mismatch.,BS正背面有无板与实际不一致
+105,BS_Y positioning timeout.,BS_Y定位超时
+106,BS_Y homing timeout.,BS_Y回零超时
+107,BS_Y absolute move without homing.,BS_Y未回零执行了绝对定位
+108,BS_Y rotation response timeout,BS_Y转动响应超时
+109,BS_X1 positioning timeout,BS_X1定位超时
+110,BS_X1 homing timeout,BS_X1回零超时
+111,BS_X1 absolute move without homing.,BS_X1未回零执行了绝对定位
+112,BS_X1 rotation response timeout.,BS_X1转动响应超时
+113,BS_X2 positioning timeout,BS_X2定位超时
+114,BS_X2 homing timeout,BS_X2回零超时
+115,BS_X2 absolute move without homing.,BS_X2未回零执行了绝对定位
+116,BS_X2 rotation response timeout.,BS_X2转动响应超时
+117,BS_Grip1 positioning timeout,BS_Grip1定位超时
+118,BS_Grip1 homing timeout,BS_Grip1回零超时
+119,BS_Grip1 absolute move without homing.,BS_Grip1未回零执行了绝对定位
+120,BS_Grip1 rotation response timeout.,BS_Grip1转动响应超时
+121,BS_Grip2 positioning timeout,BS_Grip2定位超时
+122,BS_Grip2 homing timeout,BS_Grip2回零超时
+123,BS_Grip2 absolute move without homing.,BS_Grip2未回零执行了绝对定位
+124,BS_Grip2 rotation response timeout.,BS_Grip2转动响应超时
+125,BS_Grip3 positioning timeout,BS_Grip3定位超时
+126,BS_Grip3 homing timeout,BS_Grip3回零超时
+127,BS_Grip3 absolute move without homing.,BS_Grip3未回零执行了绝对定位
+128,BS_Grip3 rotation response timeout.,BS_Grip3转动响应超时
+129,BS_Grip4 positioning timeout,BS_Grip4定位超时
+130,BS_Grip4 homing timeout,BS_Grip4回零超时
+131,BS_Grip4 absolute move without homing.,BS_Grip4未回零执行了绝对定位
+132,BS_Grip4 rotation response timeout.,BS_Grip4转动响应超时
+133,Surface station init failed.,surface工位初始失败
+134,Surface station fault.,surface工位异常
+135,Surface station open file failed.,surface工位打开文件失败
+136,Surface station open camera failed.,surface工位打开相机失败
+137,Surface station config file error.,surface工位配置文件错误
+138,Surface station PLC comm. fault.,surface工位PLC通信异常
+139,Surface station set brightness failed.,surface工位设置光源亮度失败
+140,Surface station init algorithm data failed.,surface工位初始算法数据失败
+141,Surface station image preprocessing error.,surface工位预处理图像错误
+142,Surface station image processing error.,surface工位处理图像错误
+143,Surface station result processing error,surface工位结果处理错误
+144,Edge station initialization failed,Edge工位初始化失败
+145,Edge station create detection instance failed.,Edge工位创建检测实例失败
+146,Edge station Notch image grab failed.,Edge工位Notch拍照失败
+147,Edge station Notch algorithm start failed.,Edge工位Notch算法启动失败
+148,Edge station edge measure failed.,Edge工位边缘测量失败
+149,Edge station get Notch result failed.,Edge工位获取Notch结果失败
+150,Edge station get all results failed.,Edge工位获取全部结果失败
+151,Edge station EFEM communication error.,Edge工位EFEM通讯异常
+152,Edge station generate report failed.,Edge工位生成报告失败
+153,Edge station process finish PLC signal error.,Edge工位PLC流程结束信号异常
+154, Edge thread execution error.,Edge线程错误
