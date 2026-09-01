@@ -114,6 +114,14 @@ builder.Services.AddSingleton(sp =>
     return CeidMap.LoadFromCsv(ceidCsv!, logger);
 });
 
+// 从运行目录加载报警文本映射；项目构建和发布时会复制 AlarmCode.csv。
+builder.Services.AddSingleton(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<AlarmCodeMap>>();
+    var alarmCodeCsv = Path.Combine(AppContext.BaseDirectory, "AlarmCode.csv");
+    return AlarmCodeMap.LoadFromCsv(alarmCodeCsv, logger);
+});
+
 builder.Services.AddSingleton<AlarmStore>();
 builder.Services.AddSingleton<ISecsInteractionHistoryStore, RemoteCommandAckHistoryStore>();
 builder.Services.AddSingleton<IIdempotencyGuard, InMemoryIdempotencyGuard>();

@@ -14,6 +14,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
     private readonly ILogger<ReportGrpc> _logger;
     private readonly SecsGemContext _secsGemContext;
     private readonly AlarmStore _alarmStore;
+    private readonly AlarmCodeMap _alarmCodeMap;
     private readonly VidMap _vidMap;
     private readonly CeidMap _ceidMap;
     private readonly IActiveSxFyDispatcher _activeSxFyDispatcher;
@@ -31,6 +32,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
         ILogger<ReportGrpc> logger,
         SecsGemContext secsGemContext,
         AlarmStore alarmStore,
+        AlarmCodeMap alarmCodeMap,
         VidMap vidMap,
         CeidMap ceidMap,
         IActiveSxFyDispatcher activeSxFyDispatcher,
@@ -47,6 +49,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
         _logger = logger;
         _secsGemContext = secsGemContext;
         _alarmStore = alarmStore;
+        _alarmCodeMap = alarmCodeMap;
         _vidMap = vidMap;
         _ceidMap = ceidMap;
         _activeSxFyDispatcher = activeSxFyDispatcher;
@@ -440,6 +443,15 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
 
     public override async Task<AlarmReply> ReportAlarm(AlarmReportRequest request, ServerCallContext context)
     {
+        // 请求文本优先；请求未提供时按 AlarmId 查询 CSV，仍未命中则使用默认提示。
+        if (string.IsNullOrWhiteSpace(request.AlarmText))
+        {
+            request.AlarmText = _alarmCodeMap.TryGetAlarmText(request.AlarmId, out string csvAlarmText)
+                && !string.IsNullOrWhiteSpace(csvAlarmText)
+                    ? csvAlarmText
+                    : "unknow alarm";
+        }
+
         // 打印入站 gRPC 报警参数，便于联调确认报警字段透传。
         _logger.LogInformation(
             "gRPC IN ReportAlarm. Peer={Peer}, Source={Source}, AlarmId={AlarmId}, AlarmCode={AlarmCode}, AlarmText={AlarmText}, Severity={Severity}",
