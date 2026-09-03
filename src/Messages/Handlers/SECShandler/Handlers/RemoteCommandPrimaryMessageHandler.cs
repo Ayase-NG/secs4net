@@ -33,11 +33,12 @@ namespace SECShandler.Handlers
         public IEnumerable<(int S, int F)> SupportedMessages =>
         [
             (2, 41),
+            (2, 49),
             (16, 15),
             (14, 9)
         ];
 
-        public bool CanHandle(int s, int f) => (s, f) is (2, 41) or (16, 15) or (14, 9);
+        public bool CanHandle(int s, int f) => (s, f) is (2, 41) or (2, 49) or (16, 15) or (14, 9);
 
         public async Task HandleAsync(SecsGem secsGem, PrimaryMessageWrapper primaryMessage, CancellationToken cancellationToken)
         {
@@ -48,6 +49,10 @@ namespace SECShandler.Handlers
                 case (2, 41):
                     Console.WriteLine("进入S2F41分发处理");
                     await RemoteCommandSxFyFunctions.HandleS2F41Async(primaryMessage, _device, _measurementDispatcher, _interactionHistoryStore, _idempotencyGuard, cancellationToken);
+                    break;
+                case (2, 49):
+                    Console.WriteLine("进入S2F49分发处理");
+                    await RemoteCommandSxFyFunctions.HandleS2F49Async(primaryMessage, _device, _measurementDispatcher, _interactionHistoryStore, _idempotencyGuard, cancellationToken);
                     break;
                 case (16, 15):
                     Console.WriteLine("进入S16F15分发处理");

@@ -38,7 +38,7 @@ namespace SECShandler.Functions
             {
                 // 解析回复消息中的数据,加载对应的配方文件
                 S7F5_data items = S7F5_parser.Parse(primary.PrimaryMessage);
-                string basePath = "D:\\GY\\Recipes";
+                string basePath = "D:\\GY-Recipes\\Recipes";
                 string recipePath = Path.Combine(basePath, items.recipeName + ".json");
                 string content = File.ReadAllText(recipePath, Encoding.ASCII);
                 byte[] file = Encoding.ASCII.GetBytes(content);
@@ -103,10 +103,10 @@ namespace SECShandler.Functions
             {
                 // 校验 S7F19 消息结构，S7F19 标准消息不包含数据项。
                 S7F19_parser.Parse(primary.PrimaryMessage);
-                string basePath = "D:\\GY\\Recipes";
-                // 仅返回 JSON 配方文件名，并保持稳定的名称顺序。
-                var recipeNames = Directory.EnumerateFiles(basePath, "*.json", SearchOption.TopDirectoryOnly)
-                    .Select(Path.GetFileNameWithoutExtension)
+                string basePath = "D:\\GY-Recipes\\Recipes";
+                // 返回配方根目录下的一级文件夹名称，并保持稳定的名称顺序。
+                var recipeNames = Directory.EnumerateDirectories(basePath, "*", SearchOption.TopDirectoryOnly)
+                    .Select(Path.GetFileName)
                     .Where(name => !string.IsNullOrWhiteSpace(name))
                     .Cast<string>()
                     .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
