@@ -8,6 +8,7 @@ using SECSparser;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
@@ -36,18 +37,33 @@ namespace SECShandler.Functions
             }
             try
             {
-                // 解析回复消息中的数据,加载对应的配方文件
+                // 解析请求并定位 PPID 对应的配方文件夹。
                 S7F5_data items = S7F5_parser.Parse(primary.PrimaryMessage);
                 string basePath = "D:\\GY-Recipes\\Recipes";
-                string recipePath = Path.Combine(basePath, items.recipeName + ".json");
-                string content = File.ReadAllText(recipePath, Encoding.ASCII);
-                byte[] file = Encoding.ASCII.GetBytes(content);
+                string safeRecipeName = Path.GetFileName(items.recipeName);
+                if (string.IsNullOrWhiteSpace(safeRecipeName)
+                    || !string.Equals(items.recipeName, safeRecipeName, StringComparison.Ordinal))
+                {
+                    // 拒绝包含路径片段的 PPID，防止读取配方根目录之外的数据。
+                    throw new ArgumentException("S7F5 PPID contains an invalid path.", nameof(primary));
+                }
+
+                string recipeDirectory = Path.Combine(basePath, safeRecipeName);
+                if (!Directory.Exists(recipeDirectory))
+                {
+                    // 配方目录不存在时进入统一错误响应流程。
+                    throw new DirectoryNotFoundException($"Recipe directory '{recipeDirectory}' was not found.");
+                }
+
+                // 异步将整个配方目录递归打包为 ZIP，并作为 S7F6 PPBODY 二进制数据发送。
+                byte[] recipePackage = await CreateRecipePackageAsync(recipeDirectory).ConfigureAwait(false);
                 var s7f6 = S7F6_builder.Build(new S7F6_data
                 {
-                    recipeName = items.recipeName,
-                    recipeContent = file
+                    recipeName = safeRecipeName,
+                    recipeContent = recipePackage
                 });
-                var reply = await primary.TryReplyAsync(s7f6).ConfigureAwait(false);
+                // 异步回复 S7F6，并关联原 S7F5 事务。
+                await primary.TryReplyAsync(s7f6).ConfigureAwait(false);
             }
             catch (ArgumentOutOfRangeException ex)
             {
@@ -167,6 +183,48 @@ namespace SECShandler.Functions
                 // 异步回复空的 S7F26，确保原 S7F25 事务正常结束。
                 await primary.TryReplyAsync(errorReply).ConfigureAwait(false);
             }
+        }
+
+        /// <summary>
+        /// 将配方目录中的全部文件和子目录递归打包为 ZIP 字节数组。
+        /// ZIP 内路径相对于配方目录，PPID 本身用于标识最外层配方名称。
+        /// </summary>
+        private static async Task<byte[]> CreateRecipePackageAsync(string recipeDirectory)
+        {
+            using var packageStream = new MemoryStream();
+            using (var archive = new ZipArchive(packageStream, ZipArchiveMode.Create, leaveOpen: true, Encoding.UTF8))
+            {
+                // 先写入空目录条目，确保配方中的空文件夹也能被 EAP 还原。
+                foreach (string directoryPath in Directory.EnumerateDirectories(recipeDirectory, "*", SearchOption.AllDirectories))
+                {
+                    string relativeDirectory = Path.GetRelativePath(recipeDirectory, directoryPath)
+                        .Replace(Path.DirectorySeparatorChar, '/');
+                    if (!Directory.EnumerateFileSystemEntries(directoryPath).Any())
+                    {
+                        archive.CreateEntry(relativeDirectory + "/");
+                    }
+                }
+
+                // 逐个异步复制文件内容，避免大文件同步读取阻塞 SECS 消息处理线程。
+                foreach (string filePath in Directory.EnumerateFiles(recipeDirectory, "*", SearchOption.AllDirectories))
+                {
+                    string entryName = Path.GetRelativePath(recipeDirectory, filePath)
+                        .Replace(Path.DirectorySeparatorChar, '/');
+                    ZipArchiveEntry entry = archive.CreateEntry(entryName, CompressionLevel.Optimal);
+                    await using FileStream sourceStream = new(
+                        filePath,
+                        FileMode.Open,
+                        FileAccess.Read,
+                        FileShare.Read,
+                        bufferSize: 81920,
+                        useAsync: true);
+                    await using Stream entryStream = entry.Open();
+                    // 异步将当前配方文件写入对应 ZIP 条目。
+                    await sourceStream.CopyToAsync(entryStream).ConfigureAwait(false);
+                }
+            }
+
+            return packageStream.ToArray();
         }
     }
 }
