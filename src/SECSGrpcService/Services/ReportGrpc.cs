@@ -482,7 +482,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
             request.Severity,
             context.Peer);
 
-        Console.WriteLine($"Time：{request.OccurredAtUnixMs}进入了报警上报 ReportAlarm，source:{request.Source}, alarmId:{request.AlarmId}, alarmCode:{request.AlarmCode}");
+        //Console.WriteLine($"Time：{request.OccurredAtUnixMs}进入了报警上报 ReportAlarm，source:{request.Source}, alarmId:{request.AlarmId}, alarmCode:{request.AlarmCode}");
 
         // Host 配置禁用该报警 ID 时不发送 S5F1，仅保留本地追溯。
         if (!_alarmEnableStorage.IsAlarmEnabled(alarmId))
