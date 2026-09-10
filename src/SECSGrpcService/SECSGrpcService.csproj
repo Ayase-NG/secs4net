@@ -25,11 +25,4 @@
     <ProjectReference Include="..\Messages\Handlers\SECShandler\SECShandler.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Content Include="..\Messages\Config\AlarmCode.csv" Link="AlarmCode.csv">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-    </Content>
-  </ItemGroup>
-
 </Project>

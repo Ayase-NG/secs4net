@@ -67,68 +67,138 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
     /// <summary>
     /// 上报花篮取走事件（只传 PORTID），中间件按 Port 上下文补齐 LOTID/RFID/SLOTSLIST 后发送 S6F11。
     /// </summary>
-    public override async Task<ReportReply> ReportCarrierRemoved(PortEventMessage request, ServerCallContext context)
-    {
-        // 打印入站 gRPC 载荷，便于联调时确认载具取走事件参数。
-        _logger.LogInformation("gRPC IN ReportCarrierRemoved. Peer={Peer}, PORTID={PortId}", context.Peer, request.PortId);
+    //public override async Task<ReportReply> ReportCarrierRemoved(PortEventMessage request, ServerCallContext context)
+    //{
+    //    // 打印入站 gRPC 载荷，便于联调时确认载具取走事件参数。
+    //    _logger.LogInformation("gRPC IN ReportCarrierRemoved. Peer={Peer}, PORTID={PortId}", context.Peer, request.PortId);
 
-        var portId = (request.PortId ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(portId))
+    //    var portId = (request.PortId ?? string.Empty).Trim();
+    //    if (string.IsNullOrWhiteSpace(portId))
+    //    {
+    //        return new ReportReply
+    //        {
+    //            Success = false,
+    //            Code = 1,
+    //            Message = "PORTID 不能为空。"
+    //        };
+    //    }
+
+    //    if (!_portContextStorage.TryGetByPortId(portId, out var portContext))
+    //    {
+    //        return new ReportReply
+    //        {
+    //            Success = false,
+    //            Code = 2,
+    //            Message = $"未找到 PORTID={portId} 的运行态上下文。"
+    //        };
+    //    }
+
+    //    var parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    //    {
+    //        ["PORTID"] = portContext.PortId ?? string.Empty,
+    //        ["LOTID"] = portContext.LotId ?? string.Empty,
+    //        ["CARRIERID"] = portContext.CarrierId ?? string.Empty,
+    //        ["SLOTSLIST"] = portContext.SlotsList ?? string.Empty
+    //    };
+
+    //    if (!_ceidMap.TryGetCeid("CarrierRemoved", out var ceid))
+    //    {
+    //        return new ReportReply
+    //        {
+    //            Success = false,
+    //            Code = 3,
+    //            Message = "CEID.csv 未配置事件名 CarrierRemoved。"
+    //        };
+    //    }
+
+    //    var linkedRptIds = _eventLinkStorage.GetRptIdsForCeid(ceid);
+    //    if (linkedRptIds is null || linkedRptIds.Count == 0)
+    //    {
+    //        return new ReportReply
+    //        {
+    //            Success = false,
+    //            Code = 4,
+    //            Message = $"CEID {ceid} 未绑定 RPTID，请先下发 S2F35。"
+    //        };
+    //    }
+
+    //    // 按 Host 运行态绑定的首个 RPTID 生成 CarrierRemoved 事件并发送 S6F11。
+    //    var rptId = linkedRptIds[0];
+    //    // 在发送前刷新 VID 动态值表，确保后续不同 RPTID 组合可复用当前最新值。
+    //    UpdateVidRuntimeValues(parameters);
+
+    //    // 按 RPTID 的 VID 定义补齐缺失参数，兼容 Host 动态配置的上报项组合。
+    //    var mergedParameters = MergeParametersWithVidRuntimeValues(rptId, parameters);
+    //    var data = ActiveReportSxFyFunctions.BuildGenericEventReport(
+    //        _secsGemContext.GetNextDataId(),
+    //        ceid,
+    //        rptId,
+    //        mergedParameters,
+    //        TryGetVid);
+
+    //    var sent = await _activeSxFyDispatcher.SendS6F11Async(data, context.CancellationToken).ConfigureAwait(false);
+    //    if (sent)
+    //    {
+    //        _logger.LogInformation("S6F11 sent for CarrierRemoved. CEID={CEID}, RPTID={RPTID}, PortId={PortId}, LotId={LotId}, CarrierId={CarrierId}", ceid, rptId, parameters["PORTID"], parameters["LOTID"], parameters["CARRIERID"]);
+    //    }
+    //    else
+    //    {
+    //        _logger.LogWarning("Failed or skipped S6F11 send after CarrierRemoved. PortId={PortId}", portId);
+    //    }
+
+    //    return new ReportReply
+    //    {
+    //        Success = sent,
+    //        Code = sent ? 0 : 5,
+    //        Message = sent ? string.Empty : "CarrierRemoved 上报失败或被门禁拦截。"
+    //    };
+    //}
+
+    /// <summary>
+    /// 通用事件上报：EFEM 传 EventName + 参数，本项目通过 CEID.csv 映射到 CEID 并发送 S6F11。
+    /// </summary>
+    public override async Task<ReportReply> ReportEvent(GenericEventReportRequest request, ServerCallContext context)
+    {
+        var ceid = request.CEID;
+        // 打印入站 gRPC 通用事件参数，便于排查 CEID 对应值是否正确传入。
+        _logger.LogInformation(
+            "gRPC IN ReportEvent. Peer={Peer}, CEID={CEID}, Params={Params}",
+            context.Peer,
+            ceid,
+            ToParameterLogText(request.Parameters));
+
+        // 通用事件上报前先尝试用事件参数增量刷新 Port 上下文，避免后续 PPSELECT 校验读取到旧值。
+        //TryUpdatePortContextFromEventParameters(request.Parameters);
+
+        // 通用事件上报前先刷新 VID 动态值表，为S1F11和S6F11提供数据。
+        UpdateVidRuntimeValues(request.Parameters);
+
+        // 请求 CEID 未在 CEID.csv 中定义时直接拒绝，避免上报未注册事件。
+        if (!_ceidMap.TryGetEventName(ceid, out var eventName))
         {
             return new ReportReply
             {
                 Success = false,
                 Code = 1,
-                Message = "PORTID 不能为空。"
+                Message = $"未知事件名：{ceid}"
             };
         }
 
-        if (!_portContextStorage.TryGetByPortId(portId, out var portContext))
-        {
-            return new ReportReply
-            {
-                Success = false,
-                Code = 2,
-                Message = $"未找到 PORTID={portId} 的运行态上下文。"
-            };
-        }
-
-        var parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["PORTID"] = portContext.PortId ?? string.Empty,
-            ["LOTID"] = portContext.LotId ?? string.Empty,
-            ["CARRIERID"] = portContext.CarrierId ?? string.Empty,
-            ["SLOTSLIST"] = portContext.SlotsList ?? string.Empty
-        };
-
-        if (!_ceidMap.TryGetCeid("CarrierRemoved", out var ceid))
-        {
-            return new ReportReply
-            {
-                Success = false,
-                Code = 3,
-                Message = "CEID.csv 未配置事件名 CarrierRemoved。"
-            };
-        }
-
+        // 按请求 CEID 查询 Host 运行态绑定的 RPTID，保持 S2F35 动态绑定语义。
         var linkedRptIds = _eventLinkStorage.GetRptIdsForCeid(ceid);
         if (linkedRptIds is null || linkedRptIds.Count == 0)
         {
             return new ReportReply
             {
                 Success = false,
-                Code = 4,
-                Message = $"CEID {ceid} 未绑定 RPTID，请先下发 S2F35。"
+                Code = 2,
+                Message = $"CEID {ceid} 未绑定 RPTID。"
             };
         }
 
-        // 按 Host 运行态绑定的首个 RPTID 生成 CarrierRemoved 事件并发送 S6F11。
+        // 最小实现取首个绑定 RPTID 作为通用事件上报 RPTID。后续改为遍历RPTID列表，按 Host 配置的上报项组合发送多条 S6F11。
         var rptId = linkedRptIds[0];
-        // 在发送前刷新 VID 动态值表，确保后续不同 RPTID 组合可复用当前最新值。
-        UpdateVidRuntimeValues(parameters);
-
-        // 按 RPTID 的 VID 定义补齐缺失参数，兼容 Host 动态配置的上报项组合。
-        var mergedParameters = MergeParametersWithVidRuntimeValues(rptId, parameters);
+        var mergedParameters = GetVidMapByRptId(rptId, request.Parameters);
         var data = ActiveReportSxFyFunctions.BuildGenericEventReport(
             _secsGemContext.GetNextDataId(),
             ceid,
@@ -136,84 +206,12 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
             mergedParameters,
             TryGetVid);
 
-        var sent = await _activeSxFyDispatcher.SendS6F11Async(data, context.CancellationToken).ConfigureAwait(false);
-        if (sent)
-        {
-            _logger.LogInformation("S6F11 sent for CarrierRemoved. CEID={CEID}, RPTID={RPTID}, PortId={PortId}, LotId={LotId}, CarrierId={CarrierId}", ceid, rptId, parameters["PORTID"], parameters["LOTID"], parameters["CARRIERID"]);
-        }
-        else
-        {
-            _logger.LogWarning("Failed or skipped S6F11 send after CarrierRemoved. PortId={PortId}", portId);
-        }
-
-        return new ReportReply
-        {
-            Success = sent,
-            Code = sent ? 0 : 5,
-            Message = sent ? string.Empty : "CarrierRemoved 上报失败或被门禁拦截。"
-        };
-    }
-
-    /// <summary>
-    /// 通用事件上报：EFEM 传 EventName + 参数，本项目通过 CEID.csv 映射到 CEID 并发送 S6F11。
-    /// </summary>
-    public override async Task<ReportReply> ReportEvent(GenericEventReportRequest request, ServerCallContext context)
-    {
-        // 打印入站 gRPC 通用事件参数，便于排查 CEID 对应值是否正确传入。
-        _logger.LogInformation(
-            "gRPC IN ReportEvent. Peer={Peer}, CEID={CEID}, Params={Params}",
-            context.Peer,
-            request.CEID,
-            ToParameterLogText(request.Parameters));
-
-        // 先标准化事件参数键名，统一为 CARRIERID/SLOTSLIST/PORTID，提升后续映射兼容性。
-        //var normalizedParameters = NormalizeEventParameters(request.Parameters);
-
-        // 通用事件上报前先尝试用事件参数增量刷新 Port 上下文，避免后续 PPSELECT 校验读取到旧值。
-        TryUpdatePortContextFromEventParameters(request.Parameters);
-
-        // 通用事件上报前先刷新 VID 动态值表，供不同 RPTID 的 VID 组合按需取值。
-        UpdateVidRuntimeValues(request.Parameters);
-
-        // 请求 CEID 未在 CEID.csv 中定义时直接拒绝，避免上报未注册事件。
-        if (!_ceidMap.TryGetEventName(request.CEID, out var eventName))
-        {
-            return new ReportReply
-            {
-                Success = false,
-                Code = 1,
-                Message = $"未知事件名：{request.CEID}"
-            };
-        }
-
-        // 按请求 CEID 查询 Host 运行态绑定的 RPTID，保持 S2F35 动态绑定语义。
-        var linkedRptIds = _eventLinkStorage.GetRptIdsForCeid(request.CEID);
-        if (linkedRptIds is null || linkedRptIds.Count == 0)
-        {
-            return new ReportReply
-            {
-                Success = false,
-                Code = 2,
-                Message = $"CEID {request.CEID} 未绑定 RPTID，请先下发 S2F35。"
-            };
-        }
-
-        // 最小实现取首个绑定 RPTID 作为通用事件上报 RPTID。
-        var rptId = linkedRptIds[0];
-        var mergedParameters = MergeParametersWithVidRuntimeValues(rptId, request.Parameters);
-        var data = ActiveReportSxFyFunctions.BuildGenericEventReport(
-            _secsGemContext.GetNextDataId(),
-            request.CEID,
-            rptId,
-            mergedParameters,
-            TryGetVid);
-
         // 当 CEID=1001（WaferResultReported）时，按 S16F15/S14F9 缓存计划仅校验 CarrierId 是否存在。
-        var isCarrierPlanned = true;
-        if (request.CEID == 1001)
-        {
-            isCarrierPlanned = TryValidateCarrierInPlannedJobsForResultEvent(request.Parameters);
-        }
+        //var isCarrierPlanned = true;
+        //if (request.CEID == 1001)
+        //{
+        //    isCarrierPlanned = TryValidateCarrierInPlannedJobsForResultEvent(request.Parameters);
+        //}
 
         // 异步发送通用事件 S6F11，上报是否成功仍受 S2F33/S2F35/S2F37 门禁控制。
         var sent = await _activeSxFyDispatcher.SendS6F11Async(data, context.CancellationToken).ConfigureAwait(false);
@@ -221,9 +219,6 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
         // 仅在成功上报后执行事件后置处理，确保运行态与 Host 已接收事件一致。
         if (sent)
         {
-            // 按事件 CEID 处理 Port 上下文生命周期（如 LotCompleted/CarrierRemoved 清理）。
-            TryFinalizePortContextByEvent(request.CEID, request.Parameters);
-
             // CEID=1002 视为 Carrier 到达，按 S14/S16 缓存计划匹配后下发 PPSELECT。
             if (request.CEID == 1002)
             {
@@ -236,21 +231,6 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
                     await TryDispatchProcessProgramSelectOnCarrierEventAsync(carrier, context.CancellationToken).ConfigureAwait(false);
                 }
             }
-        }
-
-        // CEID=1001 时返回 Carrier 计划校验结果码（10021=存在，10022=不存在）。
-        if (request.CEID == 1001)
-        {
-            return new ReportReply
-            {
-                Success = sent,
-                Code = sent ? (isCarrierPlanned ? 10021 : 10022) : 3,
-                Message = sent
-                    ? (isCarrierPlanned
-                        ? "WaferResultReported 上报成功，CarrierId 已匹配 S16F15/S14F9 作业计划。"
-                        : "WaferResultReported 上报成功，但 CarrierId 未匹配到 S16F15/S14F9 作业计划。")
-                    : $"事件 {eventName}({request.CEID}) 上报失败或被门禁拦截。"
-            };
         }
 
         return new ReportReply
@@ -685,7 +665,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
         UpdateVidRuntimeValues(parameters);
 
         var rptId = linkedRptIds[0];
-        var mergedParameters = MergeParametersWithVidRuntimeValues(rptId, parameters);
+        var mergedParameters = GetVidMapByRptId(rptId, parameters);
         var data = ActiveReportSxFyFunctions.BuildGenericEventReport(
             _secsGemContext.GetNextDataId(),
             onlineStateChangedCeid,
@@ -705,16 +685,15 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
     {
         foreach (var kv in parameters)
         {
-            var normalizedName = NormalizeCpName(kv.Key);
-            if (string.IsNullOrWhiteSpace(normalizedName))
+            if (string.IsNullOrWhiteSpace(kv.Key))
             {
                 continue;
             }
 
             var value = kv.Value ?? string.Empty;
-            _vidValueStorage.UpsertByName(normalizedName, value);
+            _vidValueStorage.UpsertByName(kv.Value, value);
 
-            if (_vidMap.TryGetVid(normalizedName, out var vid))
+            if (_vidMap.TryGetVid(kv.Value, out var vid))
             {
                 _vidValueStorage.UpsertByVid(vid, value);
             }
@@ -724,77 +703,45 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
     /// <summary>
     /// 按 RPTID 的 VID 定义合并参数。
     /// 作用：当本次请求缺少某些 VID 对应值时，从动态值表回填，适配 Host 侧动态上报组合。
+    /// parameters : 设备上传的VID，NAME：VALUE。
+    /// report: 依据rptid返回的VID列表，VID：VALUE。
+    /// _vidMap： VID映射表，name：vid。
+    /// _vidValueStorage： VID动态值表，VID、NAME：VALUE。
     /// </summary>
-    private IReadOnlyDictionary<string, string> MergeParametersWithVidRuntimeValues(uint rptId, IEnumerable<KeyValuePair<string, string>> parameters)
+    private IReadOnlyDictionary<string, string> GetVidMapByRptId(uint rptId, IEnumerable<KeyValuePair<string, string>> parameters)
     {
-        var merged = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var report = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
+        // 遍历参数，将内存中的vidMap进行刷新
         foreach (var kv in parameters)
         {
-            var normalizedName = NormalizeCpName(kv.Key);
-            if (string.IsNullOrWhiteSpace(normalizedName))
+            if (string.IsNullOrWhiteSpace(kv.Key))
             {
                 continue;
             }
-
-            merged[normalizedName] = kv.Value ?? string.Empty;
+            // 刷新值
+            _vidValueStorage.UpsertByName(kv.Key, kv.Value ?? string.Empty);
         }
 
         // 按当前 RPTID 的 VID 清单补齐缺失项，优先使用按 VID 缓存的值。
         foreach (var vidRaw in _reportStorage.GetVidsForReport(rptId))
         {
-            if (vidRaw > ushort.MaxValue)
-            {
-                continue;
-            }
-
+            // RPT对应的VID
             var vid = (ushort)vidRaw;
             if (!_vidMap.TryGetName(vid, out var cpName) || string.IsNullOrWhiteSpace(cpName))
             {
+                _logger.LogWarning("VID {VID} 未在 VID.csv 中定义对应参数名，忽略补齐。", vid);
                 continue;
             }
-
-            var normalizedName = NormalizeCpName(cpName);
-            if (merged.TryGetValue(normalizedName, out var existed) && !string.IsNullOrWhiteSpace(existed))
-            {
-                continue;
-            }
-
+            // 获取值
             if (_vidValueStorage.TryGetByVid(vid, out var valueByVid) && !string.IsNullOrWhiteSpace(valueByVid))
             {
-                merged[normalizedName] = valueByVid;
+                report[cpName] = valueByVid;
                 continue;
             }
-
-            if (_vidValueStorage.TryGetByName(normalizedName, out var valueByName) && !string.IsNullOrWhiteSpace(valueByName))
-            {
-                merged[normalizedName] = valueByName;
-            }
         }
 
-        return merged;
-    }
-
-    /// <summary>
-    /// 标准化参数名。
-    /// 作用：统一同义字段到标准键，避免动态值表和 VID 表出现重复键。
-    /// </summary>
-    private static string NormalizeCpName(string cpName)
-    {
-        if (string.IsNullOrWhiteSpace(cpName))
-        {
-            return string.Empty;
-        }
-
-        var key = cpName.Trim();
-        return key.ToUpperInvariant() switch
-        {
-            "RFID" => "CARRIERID",
-            "SLOTS" => "SLOTSLIST",
-            "PORT" => "PORTID",
-            "LOADPORT" => "PORTID",
-            _ => key
-        };
+        return report;
     }
 
     /// <summary>
