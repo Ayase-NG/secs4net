@@ -45,7 +45,7 @@ builder.Services.AddGrpcReflection();
 // Nacos 服务注册（配置来源：secsgrpcsettings.json -> nacos 节点）
 // 同时注册 PlcClient，供 S1F3 读取 PLC Holding 寄存器。
 builder.Services.AddNacosAspNet(builder.Configuration, "nacos");
-    //.AddSingleton<PlcClient>();
+//.AddSingleton<PlcClient>();
 
 var mysqlConnection = builder.Configuration.GetValue<string>("MySql:ConnectionString");
 if (!string.IsNullOrWhiteSpace(mysqlConnection))
@@ -120,42 +120,38 @@ builder.Services.AddSingleton(sp =>
     var logger = sp.GetRequiredService<ILogger<AlarmCodeMap>>();
     var alarmCodeCsv = Path.Combine(AppContext.BaseDirectory, "AlarmCode.csv");
     return AlarmCodeMap.LoadFromCsv(alarmCodeCsv, logger);
-});
-
-builder.Services.AddSingleton<AlarmStore>();
-builder.Services.AddSingleton<ISecsInteractionHistoryStore, RemoteCommandAckHistoryStore>();
-builder.Services.AddSingleton<IIdempotencyGuard, InMemoryIdempotencyGuard>();
-builder.Services.AddSingleton<NacosGrpcResolver>();
-builder.Services.AddSingleton<SecsGemContext>();
-builder.Services.AddSingleton<SecsEfemGrpc>();
-builder.Services.AddSingleton<IMeasurementDispatcher, GrpcMeasurementDispatcher>();
-builder.Services.AddSingleton<IActiveSxFyDispatcher, ActiveSxFyDispatcher>();
-
-// SECShandler 运行时状态与依赖（统一单例，供多个 handler 共享）
-builder.Services.AddSingleton<SecsHandlerRuntimeState>();
-builder.Services.AddSingleton<IDevice>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
-builder.Services.AddSingleton<IReportStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
-builder.Services.AddSingleton<IEventLinkStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
-builder.Services.AddSingleton<IEventEnableStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
-builder.Services.AddSingleton<IAlarmEnableStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
-builder.Services.AddSingleton<IAlarmStateStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
-builder.Services.AddSingleton<ITimeSyncStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
-builder.Services.AddSingleton<IS6F11SpoolStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
-builder.Services.AddSingleton<IPortContextStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
-builder.Services.AddSingleton<IJobPlanStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
-builder.Services.AddSingleton<IVidValueStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>());
-
-builder.Services.AddSingleton<IPrimaryMessageHandler, CommunicationPrimaryMessageHandler>();
-builder.Services.AddSingleton<IPrimaryMessageHandler, EventReportPrimaryMessageHandler>();
-builder.Services.AddSingleton<IPrimaryMessageHandler, RemoteCommandPrimaryMessageHandler>();
-builder.Services.AddSingleton<IPrimaryMessageHandler, CarrierPrimaryMessageHandler>();
-builder.Services.AddSingleton<IPrimaryMessageHandler, AlarmPrimaryMessageHandler>();
-builder.Services.AddSingleton<IPrimaryMessageHandler, TimeSyncPrimaryMessageHandler>();
-builder.Services.AddSingleton<IPrimaryMessageHandler, RecipePrimaryMessageHandler>();
-
-// 注册 SECS PrimaryMessage 持续监听服务（后台服务），与 gRPC 服务并行运行。主要
-builder.Services.AddHostedService<SecsPrimaryMessageListenerService>();
-builder.Services.AddHostedService<S6F11SpoolReplayService>();
+})
+    .AddSingleton<AlarmStore>()
+    .AddSingleton<ISecsInteractionHistoryStore, RemoteCommandAckHistoryStore>()
+    .AddSingleton<IIdempotencyGuard, InMemoryIdempotencyGuard>()
+    .AddSingleton<NacosGrpcResolver>()
+    .AddSingleton<SecsGemContext>()
+    .AddSingleton<SecsEfemGrpc>()
+    // 存储运行过程中的一些数据的接口，后续需优化删减
+    .AddSingleton<IMeasurementDispatcher, GrpcMeasurementDispatcher>()
+    .AddSingleton<IActiveSxFyDispatcher, ActiveSxFyDispatcher>()
+    .AddSingleton<SecsHandlerRuntimeState>()
+    .AddSingleton<IDevice>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>())
+    .AddSingleton<IReportStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>())
+    .AddSingleton<IEventLinkStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>())
+    .AddSingleton<IEventEnableStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>())
+    .AddSingleton<IAlarmEnableStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>())
+    .AddSingleton<IAlarmStateStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>())
+    .AddSingleton<ITimeSyncStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>())
+    .AddSingleton<IS6F11SpoolStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>())
+    .AddSingleton<IPortContextStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>())
+    .AddSingleton<IJobPlanStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>())
+    .AddSingleton<IVidValueStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>())
+    // 处理各不同功能的SxFy
+    .AddSingleton<IPrimaryMessageHandler, CommunicationPrimaryMessageHandler>()
+    .AddSingleton<IPrimaryMessageHandler, EventReportPrimaryMessageHandler>()
+    .AddSingleton<IPrimaryMessageHandler, RemoteCommandPrimaryMessageHandler>()
+    .AddSingleton<IPrimaryMessageHandler, CarrierPrimaryMessageHandler>()
+    .AddSingleton<IPrimaryMessageHandler, AlarmPrimaryMessageHandler>()
+    .AddSingleton<IPrimaryMessageHandler, TimeSyncPrimaryMessageHandler>()
+    .AddSingleton<IPrimaryMessageHandler, RecipePrimaryMessageHandler>()
+    .AddHostedService<SecsPrimaryMessageListenerService>()
+    .AddHostedService<S6F11SpoolReplayService>();
 //builder.Services.AddHostedService<DeviceStatusRefreshService>();
 
 var app = builder.Build();
