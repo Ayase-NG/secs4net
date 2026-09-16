@@ -1,5 +1,6 @@
-using Google.Protobuf;
+using GY.Server;
 using Microsoft.EntityFrameworkCore;
+using Nacos.V2.Utils;
 using System.Collections.Concurrent;
 
 namespace SECSGrpcService.Services;
@@ -18,7 +19,7 @@ public sealed class AlarmStore
     /// 激活报警表：Key = "{source}:{alarmId}"，Value = 报警详情。
     /// 使用并发字典保证多线程读写安全。
     /// </summary>
-    private readonly ConcurrentDictionary<string, ActiveAlarm> _active = new();
+    private readonly ConcurrentDictionary<uint, AlarmSatus> _active = new();
 
     public AlarmStore(IDbContextFactory<TraceabilityDbContext> dbContextFactory, ILogger<AlarmStore> logger)
     {
@@ -52,17 +53,14 @@ public sealed class AlarmStore
         // 将 gRPC int32 字段统一转换为当前报警存储模型使用的无符号 ID 和单字节代码。
         uint alarmId = unchecked((uint)request.AlarmId);
         byte alarmCode = unchecked((byte)request.AlarmCode);
-        var activeAlarm = new ActiveAlarm
+        var activeAlarm = new AlarmSatus
         {
-            Source = source,
             AlarmId = alarmId,
-            AlarmCode = ByteString.CopyFrom(new[] { alarmCode }),
+            AlarmCode = (byte)(0x1000_0000 | alarmCode), // 将报警代码放在高位，确保与历史记录一致
             AlarmText = request.AlarmText ?? string.Empty,
-            Severity = (int)request.Severity == 0 ? (AlarmSeverity)2 : request.Severity,
-            OccurredAtUnixMs = request.OccurredAtUnixMs
+            ALACT = false,
         };
-
-        _active[Key(source, alarmId)] = activeAlarm;
+        _active.AddOrUpdate(alarmId, activeAlarm, (key, oldvalue) => activeAlarm);
 
         try
         {
@@ -70,14 +68,13 @@ public sealed class AlarmStore
 
             // 使用 LINQ 生成可追溯时间戳（保持“通过 LINQ 方式处理数据”的风格）
             var occurredAt = new[] { request.OccurredAtUnixMs }.Select(x => x).FirstOrDefault();
-
+            // 将报警历史记录写入数据库
             var history = new AlarmHistoryRecord
             {
                 Source = source,
                 AlarmId = alarmId,
                 AlarmCode = new[] { alarmCode },
                 AlarmText = request.AlarmText ?? string.Empty,
-                Severity = (int)activeAlarm.Severity,
                 OccurredAtUnixMs = occurredAt,
                 CreatedAtUtc = DateTime.UtcNow
             };
@@ -95,22 +92,32 @@ public sealed class AlarmStore
     /// 清除指定报警。
     /// </summary>
     /// <returns>成功删除返回 true；不存在返回 false。</returns>
-    public bool Remove(string source, uint alarmId)
+    public bool Remove(uint alarmId)
     {
-        var safeSource = string.IsNullOrWhiteSpace(source) ? "<unknown>" : source.Trim();
-        return _active.TryRemove(Key(safeSource, alarmId), out _);
+        if (!_active.TryGetValue(alarmId,out var al))
+            return false;
+        al.ALACT = false; // 标记为已确认
+        al.AlarmCode = 0x0000_0000; // 清除报警代码
+        return _active.TryUpdate(alarmId, al, _active.GetValueOrDefault(alarmId));
     }
 
     /// <summary>
     /// 查询激活报警。
-    /// source 为空时返回全部；否则按来源过滤。
     /// </summary>
-    public IEnumerable<ActiveAlarm> Query(string? source)
+    public List<AlarmSatus> GetAlarmList()
     {
-        if (string.IsNullOrWhiteSpace(source))
-            return _active.Values.ToArray();
-
-        var safeSource = source.Trim();
-        return _active.Values.Where(x => string.Equals(x.Source, safeSource, StringComparison.OrdinalIgnoreCase)).ToArray();
+        return _active.Values.ToList();
     }
+}
+
+public class AlarmSatus
+{
+    // 状态
+    public byte AlarmCode { get; set; } = 0x0000_0000;
+    // 编号
+    public uint AlarmId { get; set; } = 0;
+    // 描述
+    public string AlarmText { get; set; } = string.Empty;
+    // Host是否已确认
+    public bool ALACT { get; set; } = false;
 }

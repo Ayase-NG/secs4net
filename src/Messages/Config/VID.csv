@@ -18,6 +18,11 @@ VID,Type,Name,Format,DefaultValue,Explain
 1017,SVID,LP4MapSotList,List,,
 1018,SVID,SlotState,A,,晶圆状态，Notstate、Resource、Aborted
 1019,SVID,SpoolCountActual,U4,,暂存的待上传消息数量，当设备与Host断连后暂存待发送消息后续连上后再发（尚未实现此功能）
+1020,SVID,EdgeSlotId,U4,,Edge工位上的晶圆槽位号
+1021,SVID,EdgeResult,U4,,Edge工位检测结果
+1022,SVID,SurfaceSlotId,U4,,表面检测工位的晶圆槽位号
+1023,SVID,FrontSurfaceResult,U4,,正面检测结果
+1024,SVID,BackSurfaceResult,U4,,背面检测结果 
 2001,ECID,SoftwareVersion,A,SECS-Alpha-1.0.0,软件版本
 2002,ECID,HardwareVersion,A,GWM-PW-1.0,硬件版本
 2003,ECID,MaxThroughput,U4,100,最大吞吐量

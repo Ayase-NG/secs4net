@@ -1,5 +1,6 @@
 using Grpc.Core;
 using Grpc.Net.Client;
+using GY.EFEM;
 
 namespace SECSGrpcService.Services
 {
@@ -151,7 +152,7 @@ namespace SECSGrpcService.Services
                 try
                 {
                     using var channel = GrpcChannel.ForAddress(address);
-                    var client = new global::SECSGrpcService.EFEM.EFEMClient(channel.CreateCallInvoker());
+                    var client = new EFEM.EFEMClient(channel.CreateCallInvoker());
                     var call = client.SlotMapSelectAsync(slotMapMessage, cancellationToken: CreateLinkedToken(cancellationToken));
                     var reply = await call.ResponseAsync.ConfigureAwait(false);
                     _logger.LogInformation("SlotMapSelect -> {Address} returned {Code}: {Msg}", address, reply.MessageCode, reply.Message);
@@ -183,7 +184,7 @@ namespace SECSGrpcService.Services
                 try
                 {
                     using var channel = GrpcChannel.ForAddress(address);
-                    var client = new global::SECSGrpcService.EFEM.EFEMClient(channel.CreateCallInvoker());
+                    var client = new EFEM.EFEMClient(channel.CreateCallInvoker());
 
                     var startCall = client.StartMeasurementAsync(new NoParams(), cancellationToken: CreateLinkedToken(cancellationToken));
                     var startReply = await startCall.ResponseAsync.ConfigureAwait(false);
@@ -216,7 +217,7 @@ namespace SECSGrpcService.Services
                 try
                 {
                     using var channel = GrpcChannel.ForAddress(address);
-                    var client = new global::SECSGrpcService.EFEM.EFEMClient(channel.CreateCallInvoker());
+                    var client = new EFEM.EFEMClient(channel.CreateCallInvoker());
                     var call = client.StopMeasurementAsync(waferMessage, cancellationToken: CreateLinkedToken(cancellationToken));
                     var reply = await call.ResponseAsync.ConfigureAwait(false);
                     _logger.LogInformation("StopMeasurement -> {Address} returned {Code}: {Msg}", address, reply.MessageCode, reply.Message);
@@ -248,7 +249,7 @@ namespace SECSGrpcService.Services
                 try
                 {
                     using var channel = GrpcChannel.ForAddress(address);
-                    var client = new global::SECSGrpcService.EFEM.EFEMClient(channel.CreateCallInvoker());
+                    var client = new EFEM.EFEMClient(channel.CreateCallInvoker());
                     var call = client.PauseMeasurementAsync(waferMessage, cancellationToken: CreateLinkedToken(cancellationToken));
                     var reply = await call.ResponseAsync.ConfigureAwait(false);
                     _logger.LogInformation("PauseMeasurement -> {Address} returned {Code}: {Msg}", address, reply.MessageCode, reply.Message);
@@ -280,7 +281,7 @@ namespace SECSGrpcService.Services
                 try
                 {
                     using var channel = GrpcChannel.ForAddress(address);
-                    var client = new global::SECSGrpcService.EFEM.EFEMClient(channel.CreateCallInvoker());
+                    var client = new EFEM.EFEMClient(channel.CreateCallInvoker());
                     var call = client.ResumeMeasurementAsync(waferMessage, cancellationToken: CreateLinkedToken(cancellationToken));
                     var reply = await call.ResponseAsync.ConfigureAwait(false);
                     _logger.LogInformation("ResumeMeasurement -> {Address} returned {Code}: {Msg}", address, reply.MessageCode, reply.Message);
@@ -312,7 +313,7 @@ namespace SECSGrpcService.Services
                 try
                 {
                     using var channel = GrpcChannel.ForAddress(address);
-                    var client = new global::SECSGrpcService.EFEM.EFEMClient(channel.CreateCallInvoker());
+                    var client = new EFEM.EFEMClient(channel.CreateCallInvoker());
                     var call = client.RecipeSelectAsync(recipeMessage, cancellationToken: CreateLinkedToken(cancellationToken));
                     var reply = await call.ResponseAsync.ConfigureAwait(false);
                     _logger.LogInformation("RecipeSelect -> {Address} returned {Code}: {Msg}", address, reply.MessageCode, reply.Message);
@@ -344,7 +345,7 @@ namespace SECSGrpcService.Services
                 try
                 {
                     using var channel = GrpcChannel.ForAddress(address);
-                    var client = new global::SECSGrpcService.EFEM.EFEMClient(channel.CreateCallInvoker());
+                    var client = new EFEM.EFEMClient(channel.CreateCallInvoker());
                     var call = client.StatusReportAsync(new NoParams(), cancellationToken: CreateLinkedToken(cancellationToken));
                     var reply = await call.ResponseAsync.ConfigureAwait(false);
                     _logger.LogInformation("StatusReport -> {Address} returned {Code}: {Msg}, Mode={Mode}, RunStatus={RunStatus}", address, reply.MessageCode, reply.Message, reply.Mode, reply.RunStatus);

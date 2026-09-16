@@ -1,14 +1,14 @@
 syntax = "proto3";
 
-option csharp_namespace = "SECSGrpcService";
-
 package GY.EFEM;
-
-import "common.proto";
 
 // 主动外发接口定义（本项目作为 gRPC Client）。
 // 说明：本文件的RPC均为主动外发，调用EFEM的server。
 service EFEM {
+
+	// 载入晶圆盒
+	rpc LoadCassette (CassetteMessage) returns (ControlReply);
+
   // 开始检测。
   rpc StartMeasurement (NoParams) returns (ControlReply);
 
@@ -29,13 +29,184 @@ service EFEM {
 
   // 获取状态
   rpc StatusReport (NoParams) returns (StatusReply);
-}
 
-// 报警相关主动外发服务。
-service AlarmGrpcService {
   // 清除报警（报警恢复）。
-  rpc ClearAlarm (AlarmClearRequest) returns (AlarmReply);
+  rpc ClearAlarm (AlarmClearRequest) returns (AlarmClearReply);
 
   // 查询当前激活报警。
   rpc QueryActiveAlarms (QueryActiveAlarmsRequest) returns (QueryActiveAlarmsReply);
+}
+
+message CassetteMessage{
+  // Loadport位置。
+  string portId = 1;
+  // Carrier ID。
+  string carrierId = 2;
+}
+
+// 无参请求体
+message NoParams{
+}
+
+// 控制类接口通用响应。
+message ControlReply {
+  // 返回码：0=成功，其他=失败/异常。
+  int32 messageCode = 1;
+
+  // 返回信息。
+  string Message = 2;
+}
+
+// 晶圆上下文信息（用于停止/暂停/恢复/结果上报等）。
+message WaferMessage {
+  // 晶圆槽位。
+  string slotId = 1;
+
+  // 晶圆 ID。
+  string waferId = 2;
+
+  // 批次 ID。
+  string lotId = 3;
+
+  // 检测状态（Edge，Surface，completed）。
+  string status = 4;
+
+  // 配方 ID（PPID）。
+  string PPID = 5;
+
+  // 检测结果（建议由业务约定枚举值）。
+  string result = 6;
+
+  // 当前晶圆所属 Port（可选）。
+  string portId = 7;
+}
+
+// 配方选择请求。下位机优先判断mode
+message RecipeMessage {
+  // 配方名称。
+  string PPID = 1;
+
+  // Loadport位置。有四个loadport例如：1011，仅134号port需要测试。
+  string portId = 2;
+
+  // 模式选择。00=全自动，01=半自动，02=分拣。
+  string mode = 3;
+
+  // 批次 ID（可选，按业务场景传）。
+  string lotId = 4;
+
+  // 本次要处理的晶圆槽位列表。
+  repeated uint32 slotsList = 5;
+}
+
+
+// S3F17 对应的槽位选择请求（与 PPSELECT 解耦）。
+message SlotMapSelectMessage {
+  // Loadport位置。
+  string portId = 1;
+
+  // 批次 ID。
+  string lotId = 2;
+
+  // Carrier ID。
+  string carrierId = 3;
+
+  // 本次要处理的晶圆槽位列表。
+  repeated uint32 slotsList = 4;
+}
+
+// 状态回复。
+message StatusReply {
+  // 返回码：0=成功，其他=失败/异常。
+  int32 messageCode = 1;
+  // 返回信息。
+  string message = 2;
+  // 运行模式。未设置00，全自动01，半自动02，分拣03。
+  string mode = 3;
+  // 运行状态。
+  string runStatus = 4;
+}
+
+// 报警相关通用回复。
+message AlarmClearReply {
+  // 返回码：0=成功，其他=失败/异常。
+  int32 messageCode = 1;
+
+  // 返回信息。
+  string message = 2;
+
+  // 请求追踪 ID（可选）。
+  string requestId = 3;
+}
+
+// 报警清除请求（报警恢复）。
+message AlarmClearRequest {
+  // 报警来源（设备/模块）。
+  string source = 1;
+
+  // 报警编号。
+  uint32 alarmId = 2;
+
+  // 清除原因。
+  string clearReason = 3;
+
+  // 清除时间（Unix 毫秒时间戳）。
+  int64 clearedAtUnixMs = 4;
+}
+
+// 查询激活报警请求。
+message QueryActiveAlarmsRequest {
+  // 报警来源过滤（为空表示查询全部来源）。
+  string source = 1;
+}
+
+// 查询激活报警回复。
+message QueryActiveAlarmsReply {
+  // 返回码：0=成功，其他=失败/异常。
+  int32 messageCode = 1;
+
+  // 返回信息。
+  string message = 2;
+
+  // 当前激活报警列表。
+  repeated ActiveAlarm alarms = 3;
+}
+
+// 激活报警条目。
+message ActiveAlarm {
+  // 报警来源。
+  string source = 1;
+
+  // 报警编号。
+  uint32 alarmId = 2;
+
+  // 报警代码（8位字节编码）。
+  bytes alarmCode = 3;
+
+  // 报警文本。
+  string alarmText = 4;
+
+  // 报警级别。
+  AlarmSeverity severity = 5;
+
+  // 发生时间（Unix 毫秒时间戳）。
+  int64 occurredAtUnixMs = 6;
+}
+
+// 报警级别。
+enum AlarmSeverity {
+  // 未指定。
+  UNSPECIFIED = 0;
+
+  // 提示。
+  INFO = 1;
+
+  // 警告。
+  WARNING = 2;
+
+  // 错误。
+  ERROR = 3;
+
+  // 严重错误。
+  CRITICAL = 4;
 }

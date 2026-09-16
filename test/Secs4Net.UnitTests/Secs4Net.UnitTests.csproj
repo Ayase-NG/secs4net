@@ -42,7 +42,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<Protobuf Include="..\..\src\SECSGrpcService\Protos\common.proto" GrpcServices="None" ProtoRoot="..\..\src\SECSGrpcService\Protos" Link="Protos\common.proto" />
 		<Protobuf Include="..\..\src\SECSGrpcService\Protos\secs.proto" GrpcServices="Both" ProtoRoot="..\..\src\SECSGrpcService\Protos" Link="Protos\secs.proto" />
 	</ItemGroup>
 

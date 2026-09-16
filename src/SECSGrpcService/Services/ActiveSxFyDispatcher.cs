@@ -134,7 +134,7 @@ public sealed class ActiveSxFyDispatcher : IActiveSxFyDispatcher
         _s6f11SpoolStorage.Enqueue(data);
 
         // 方法兜底：重试耗尽失败也记录追溯，便于排查 Host 未回 S6F12 等问题。
-        await SaveOutboundS6F11HistoryAsync(hostResolvedData, hcack: 1, cancellationToken).ConfigureAwait(false);
+        await SaveOutboundS6F11HistoryAsync(data, hcack: 1, cancellationToken).ConfigureAwait(false);
         return false;
     }
 

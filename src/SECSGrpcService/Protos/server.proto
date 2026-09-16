@@ -1,0 +1,103 @@
+syntax = "proto3";
+
+
+package GY.server;
+
+// 被动接收接口定义（本项目作为 gRPC Server）。
+// 说明：本文件的所有 RPC 均为被动接收，外部系统调用本项目的 server。
+
+// 结果上报服务。
+service ReportGrpcService {
+
+	// 通用事件上报（事件名 + 参数）。
+	rpc ReportEvent (GenericEventReportRequest) returns (ReportReply);
+
+	// 上报报警（报警发生）。
+	rpc ReportAlarm (AlarmReportRequest) returns (AlarmReply);
+
+	// 请求远程在线状态。
+	rpc RequestOnlineStatus (OnlineStatusRequest) returns (OnlineStatusReply);
+}
+
+// 在线状态
+message OnlineStatusRequest {
+  // 请求来源（设备/模块）。
+  string source = 1;
+}
+
+// 报警上报请求（报警发生）。
+message AlarmReportRequest {
+  // 报警来源（设备/模块）。
+  string source = 1;
+
+  // 报警编号（可映射 ALID）。
+  int32 alarmId = 2;
+
+  // 报警代码。
+  int32 alarmCode = 3;
+
+  // 报警文本。
+  string alarmText = 4;
+
+  // 报警级别。
+  AlarmSeverity severity = 5;
+
+  // 发生时间（Unix 毫秒时间戳）。
+  int64 occurredAtUnixMs = 6;
+}
+
+// 报警级别。
+enum AlarmSeverity {
+  // 未指定。
+  UNSPECIFIED = 0;
+
+  // 提示。
+  INFO = 1;
+
+  // 警告。
+  WARNING = 2;
+
+  // 错误。
+  ERROR = 3;
+
+  // 严重错误。
+  CRITICAL = 4;
+}
+
+// 通用事件上报（由 EFEM 传事件名 + 关键参数，本项目映射为 CEID 后再做 S6F11）。
+message GenericEventReportRequest {
+  // 事件名（通过 CEID.csv 映射到 CEID）。
+  string eventName = 1;
+
+  // 关键参数（键值对，键建议使用 CPName）。
+  map<string, string> parameters = 2;
+}
+
+// 结果上报回复。
+message ReportReply {
+  bool success = 1;
+  int32 code = 2;
+  string message = 3;
+}
+
+// 报警相关通用回复。
+message AlarmReply {
+  // 返回码：0=成功，其他=失败/异常。
+  int32 messageCode = 1;
+
+  // 返回信息。
+  string message = 2;
+
+  // 请求追踪 ID（可选）。
+  string requestId = 3;
+}
+
+// 在线状态查询请求。
+message OnlineStatusReply{
+  // 返回码：0=成功，其他=失败/异常。
+  int32 messageCode = 1;
+  // 返回信息。
+  string message = 2;
+  // 在线状态：true=在线，false=离线。
+  bool online = 3;
+}

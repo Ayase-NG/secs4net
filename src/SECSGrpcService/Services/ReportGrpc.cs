@@ -1,5 +1,9 @@
 using Google.Protobuf;
 using Grpc.Core;
+using Grpc.Net.Client;
+using GY.EFEM;
+using GY.Server;
+using Nacos.V2;
 using SECSdata;
 using SECShandler.Functions;
 using SECShandler.Interfaces;
@@ -9,7 +13,7 @@ namespace SECSGrpcService.Services;
 /// <summary>
 /// 上报相关 gRPC 服务实现，对应 <c>efem.proto</c>。
 /// </summary>
-public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
+public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
 {
     private readonly ILogger<ReportGrpc> _logger;
     private readonly SecsGemContext _secsGemContext;
@@ -27,6 +31,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
     private readonly IMeasurementDispatcher _measurementDispatcher;
     private readonly IReportStorage _reportStorage;
     private readonly IVidValueStorage _vidValueStorage;
+    private readonly Nacos.V2.INacosNamingService nacos;
 
     public ReportGrpc(
         ILogger<ReportGrpc> logger,
@@ -44,7 +49,8 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
         IJobPlanStorage jobPlanStorage,
         IMeasurementDispatcher measurementDispatcher,
         IReportStorage reportStorage,
-        IVidValueStorage vidValueStorage)
+        IVidValueStorage vidValueStorage,
+        INacosNamingService nacos)
     {
         _logger = logger;
         _secsGemContext = secsGemContext;
@@ -65,101 +71,12 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
     }
 
     /// <summary>
-    /// 上报花篮取走事件（只传 PORTID），中间件按 Port 上下文补齐 LOTID/RFID/SLOTSLIST 后发送 S6F11。
-    /// </summary>
-    //public override async Task<ReportReply> ReportCarrierRemoved(PortEventMessage request, ServerCallContext context)
-    //{
-    //    // 打印入站 gRPC 载荷，便于联调时确认载具取走事件参数。
-    //    _logger.LogInformation("gRPC IN ReportCarrierRemoved. Peer={Peer}, PORTID={PortId}", context.Peer, request.PortId);
-
-    //    var portId = (request.PortId ?? string.Empty).Trim();
-    //    if (string.IsNullOrWhiteSpace(portId))
-    //    {
-    //        return new ReportReply
-    //        {
-    //            Success = false,
-    //            Code = 1,
-    //            Message = "PORTID 不能为空。"
-    //        };
-    //    }
-
-    //    if (!_portContextStorage.TryGetByPortId(portId, out var portContext))
-    //    {
-    //        return new ReportReply
-    //        {
-    //            Success = false,
-    //            Code = 2,
-    //            Message = $"未找到 PORTID={portId} 的运行态上下文。"
-    //        };
-    //    }
-
-    //    var parameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-    //    {
-    //        ["PORTID"] = portContext.PortId ?? string.Empty,
-    //        ["LOTID"] = portContext.LotId ?? string.Empty,
-    //        ["CARRIERID"] = portContext.CarrierId ?? string.Empty,
-    //        ["SLOTSLIST"] = portContext.SlotsList ?? string.Empty
-    //    };
-
-    //    if (!_ceidMap.TryGetCeid("CarrierRemoved", out var ceid))
-    //    {
-    //        return new ReportReply
-    //        {
-    //            Success = false,
-    //            Code = 3,
-    //            Message = "CEID.csv 未配置事件名 CarrierRemoved。"
-    //        };
-    //    }
-
-    //    var linkedRptIds = _eventLinkStorage.GetRptIdsForCeid(ceid);
-    //    if (linkedRptIds is null || linkedRptIds.Count == 0)
-    //    {
-    //        return new ReportReply
-    //        {
-    //            Success = false,
-    //            Code = 4,
-    //            Message = $"CEID {ceid} 未绑定 RPTID，请先下发 S2F35。"
-    //        };
-    //    }
-
-    //    // 按 Host 运行态绑定的首个 RPTID 生成 CarrierRemoved 事件并发送 S6F11。
-    //    var rptId = linkedRptIds[0];
-    //    // 在发送前刷新 VID 动态值表，确保后续不同 RPTID 组合可复用当前最新值。
-    //    UpdateVidRuntimeValues(parameters);
-
-    //    // 按 RPTID 的 VID 定义补齐缺失参数，兼容 Host 动态配置的上报项组合。
-    //    var mergedParameters = MergeParametersWithVidRuntimeValues(rptId, parameters);
-    //    var data = ActiveReportSxFyFunctions.BuildGenericEventReport(
-    //        _secsGemContext.GetNextDataId(),
-    //        ceid,
-    //        rptId,
-    //        mergedParameters,
-    //        TryGetVid);
-
-    //    var sent = await _activeSxFyDispatcher.SendS6F11Async(data, context.CancellationToken).ConfigureAwait(false);
-    //    if (sent)
-    //    {
-    //        _logger.LogInformation("S6F11 sent for CarrierRemoved. CEID={CEID}, RPTID={RPTID}, PortId={PortId}, LotId={LotId}, CarrierId={CarrierId}", ceid, rptId, parameters["PORTID"], parameters["LOTID"], parameters["CARRIERID"]);
-    //    }
-    //    else
-    //    {
-    //        _logger.LogWarning("Failed or skipped S6F11 send after CarrierRemoved. PortId={PortId}", portId);
-    //    }
-
-    //    return new ReportReply
-    //    {
-    //        Success = sent,
-    //        Code = sent ? 0 : 5,
-    //        Message = sent ? string.Empty : "CarrierRemoved 上报失败或被门禁拦截。"
-    //    };
-    //}
-
-    /// <summary>
     /// 通用事件上报：EFEM 传 EventName + 参数，本项目通过 CEID.csv 映射到 CEID 并发送 S6F11。
     /// </summary>
     public override async Task<ReportReply> ReportEvent(GenericEventReportRequest request, ServerCallContext context)
     {
-        var ceid = request.CEID;
+        var eventName = request.EventName;
+        var ceid = _ceidMap.TryGetCeid(eventName, out var mappedCeid) ? mappedCeid : 0;
         // 打印入站 gRPC 通用事件参数，便于排查 CEID 对应值是否正确传入。
         _logger.LogInformation(
             "gRPC IN ReportEvent. Peer={Peer}, CEID={CEID}, Params={Params}",
@@ -167,14 +84,11 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
             ceid,
             ToParameterLogText(request.Parameters));
 
-        // 通用事件上报前先尝试用事件参数增量刷新 Port 上下文，避免后续 PPSELECT 校验读取到旧值。
-        //TryUpdatePortContextFromEventParameters(request.Parameters);
-
         // 通用事件上报前先刷新 VID 动态值表，为S1F11和S6F11提供数据。
         UpdateVidRuntimeValues(request.Parameters);
 
         // 请求 CEID 未在 CEID.csv 中定义时直接拒绝，避免上报未注册事件。
-        if (!_ceidMap.TryGetEventName(ceid, out var eventName))
+        if (!_ceidMap.TryGetEventName(ceid, out eventName))
         {
             return new ReportReply
             {
@@ -206,220 +120,65 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
             mergedParameters,
             TryGetVid);
 
-        // 当 CEID=1001（WaferResultReported）时，按 S16F15/S14F9 缓存计划仅校验 CarrierId 是否存在。
-        //var isCarrierPlanned = true;
-        //if (request.CEID == 1001)
-        //{
-        //    isCarrierPlanned = TryValidateCarrierInPlannedJobsForResultEvent(request.Parameters);
-        //}
-
         // 异步发送通用事件 S6F11，上报是否成功仍受 S2F33/S2F35/S2F37 门禁控制。
         var sent = await _activeSxFyDispatcher.SendS6F11Async(data, context.CancellationToken).ConfigureAwait(false);
 
-        // 仅在成功上报后执行事件后置处理，确保运行态与 Host 已接收事件一致。
-        if (sent)
+        // 通过Task.Run异步执行，避免阻塞 gRPC 上报链路。后续可改为事件总线或消息队列方式解耦。
+        if (eventName.Equals("MappingCompleted"))
         {
-            // CEID=1002 视为 Carrier 到达，按 S14/S16 缓存计划匹配后下发 PPSELECT。
-            if (request.CEID == 1002)
+            if (_vidValueStorage.TryGetByName("CarrierID", out var carrierId))
             {
-                var carrier = BuildCarrierMessageFromEventParameters(request.Parameters);
-
-                // 仅在能解析到有效 CARRIERID 时触发调度，避免误触发。
-                if (!string.IsNullOrWhiteSpace(carrier.RFID))
-                {
-                    // 异步按 S16F15/S14F9 缓存计划仅下发 PPSELECT，并使用任务中的槽位列表。
-                    await TryDispatchProcessProgramSelectOnCarrierEventAsync(carrier, context.CancellationToken).ConfigureAwait(false);
-                }
+                _ = Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    var instance = await this.nacos.SelectOneHealthyInstance("EFEM", "GY");
+                                    if (instance == null)
+                                    {
+                                        _logger.LogError("({ServiceName}) 未在 Nacos 找到健康实例", "EFEM");
+                                        // S5F1上报内部通信异常，直接返回。
+                                        return;
+                                    }
+                                    var channel = GrpcChannel.ForAddress($"http://{instance.Ip}:{instance.Port}");
+                                    var client = new EFEM.EFEMClient(channel);
+                                    // 仅在能解析到有效 CARRIERID 时触发调度，避免误触发。
+                                    if (_vidValueStorage.TryGetByName("CarrierID", out var carrierId))
+                                    {
+                                        // 在PJ中查询是否有对应的Carrier，若有则下发后续流程。
+                                        var pJob = _jobPlanStorage.GetAllProcessJobs().FirstOrDefault(pj => pj.Carriers.Any(c => string.Equals(c.CarrierId, carrierId, StringComparison.OrdinalIgnoreCase)));
+                                        if (pJob is not null)
+                                        {
+                                            
+                                            _logger.LogInformation("Carrier {CarrierId} found in ProcessJob {PJID}. Start Test.", carrierId, pJob.PJID);
+                                            // 1.LoadCarrier
+                                            client.StartMeasurement(new NoParams());
+                                            // 2.MappingCompleted
+                                            // 3.依据PJob选择Recipe和SlotList
+                                            // 4.Start
+                                            client.StartMeasurement(new NoParams());
+                                        }
+                                        else
+                                        {
+                                            _logger.LogInformation("Carrier {CarrierId} not found in any ProcessJob. No PPSELECT will be triggered.", carrierId);
+                                        }
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogError(ex, "Error in TryDispatchProcessProgramSelectOnCarrierEventAsync for MappingCompleted event.");
+                                }
+                            });
             }
-        }
 
+        }
         return new ReportReply
         {
             Success = sent,
             Code = sent ? 0 : 3,
-            Message = sent ? string.Empty : $"事件 {eventName}({request.CEID}) 上报失败或被门禁拦截。"
+            Message = sent ? string.Empty : $"事件 {eventName}({ceid}) 上报失败或被门禁拦截。"
         };
     }
 
-    /// <summary>
-    /// 将通用事件参数转换为 CarrierMessage。
-    /// 作用：在 CEID=1002 场景复用既有 Carrier 到达自动调度逻辑。
-    /// </summary>
-    private static CarrierMessage BuildCarrierMessageFromEventParameters(IDictionary<string, string> parameters)
-    {
-        var message = new CarrierMessage
-        {
-            PortId = ReadParameter(parameters, "PORTID", "PORT", "LOADPORT")?.Trim() ?? string.Empty,
-            LotId = ReadParameter(parameters, "LOTID")?.Trim() ?? string.Empty,
-            RFID = ReadParameter(parameters, "CARRIERID", "RFID")?.Trim() ?? string.Empty
-        };
-
-        var slotsText = ReadParameter(parameters, "SLOTSLIST", "SLOTS")?.Trim();
-        foreach (var slot in ParseSlotsList(slotsText))
-        {
-            message.SlotsList.Add(slot);
-        }
-
-        return message;
-    }
-
-    /// <summary>
-    /// 解析逗号分隔的槽位字符串。
-    /// 作用：将事件参数中的 SLOTSLIST 文本安全转换为槽位整数列表。
-    /// </summary>
-    private static IReadOnlyList<uint> ParseSlotsList(string? slotsText)
-    {
-        if (string.IsNullOrWhiteSpace(slotsText))
-        {
-            return Array.Empty<uint>();
-        }
-
-        var result = new List<uint>();
-        foreach (var token in slotsText.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            if (uint.TryParse(token, out var slot) && slot > 0)
-            {
-                result.Add(slot);
-            }
-        }
-
-        return result;
-    }
-
-    /// <summary>
-    /// Carrier 事件触发的 PPSELECT 调度入口。
-    /// 作用：当 CEID=1002 命中 S14F9/S16F15 缓存计划时，仅下发 ProcessProgramSelect，且槽位使用任务内定义。
-    /// </summary>
-    private async Task TryDispatchProcessProgramSelectOnCarrierEventAsync(CarrierMessage request, CancellationToken cancellationToken)
-    {
-        var carrierId = (request.RFID ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(carrierId))
-        {
-            return;
-        }
-
-        var controlJobs = _jobPlanStorage.GetAllControlJobs();
-        if (controlJobs.Count == 0)
-        {
-            return;
-        }
-
-        foreach (var cj in controlJobs.OrderByDescending(x => x.UpdatedAtUtc))
-        {
-            // 当前 Carrier 不在 CJ 输入列表时跳过。
-            if (cj.CarrierInputSpec.Count == 0
-                || !cj.CarrierInputSpec.Any(x => string.Equals(x, carrierId, StringComparison.OrdinalIgnoreCase)))
-            {
-                continue;
-            }
-
-            foreach (var pjId in cj.ProcessingCtrlSpec)
-            {
-                if (!_jobPlanStorage.TryGetProcessJob(pjId, out var pj))
-                {
-                    continue;
-                }
-
-                var matchedCarrier = pj.Carriers.FirstOrDefault(x => string.Equals(x.CarrierId, carrierId, StringComparison.OrdinalIgnoreCase));
-                if (matchedCarrier is null)
-                {
-                    continue;
-                }
-
-                var slots = matchedCarrier.Slots.Where(x => x > 0).Distinct().ToList();
-                // 任务内未定义槽位时不下发 PPSELECT，避免使用非任务槽位。
-                if (slots.Count == 0)
-                {
-                    continue;
-                }
-
-                var ppSelect = new S2F41_data
-                {
-                    RCMD = "PPSELECT",
-                    Parameters = new Dictionary<string, Secs4Net.Item>(StringComparer.OrdinalIgnoreCase)
-                    {
-                        ["PPID"] = Secs4Net.Item.A(string.IsNullOrWhiteSpace(pj.RecipeId) ? "DEFAULT" : pj.RecipeId),
-                        ["LOTID"] = Secs4Net.Item.A(request.LotId ?? string.Empty),
-                        ["PORTID"] = Secs4Net.Item.A(request.PortId ?? string.Empty),
-                        ["MODE"] = Secs4Net.Item.A(_device.Mode),
-                        ["SLOTSLIST"] = Secs4Net.Item.A(string.Join(',', slots))
-                    }
-                };
-
-                // 异步下发 PPSELECT，并使用任务缓存槽位（格式与 gRPC 一致："1,2,4,8"）。
-                await _measurementDispatcher.DispatchProcessProgramSelectAsync(ppSelect, cancellationToken).ConfigureAwait(false);
-                _logger.LogInformation("ProcessProgramSelect dispatched by CEID=1002. CJID={CJID}, PJID={PJID}, CarrierId={CarrierId}, PortId={PortId}, LotId={LotId}, SlotsList={SlotsList}", cj.CJID, pj.PJID, carrierId, request.PortId, request.LotId, string.Join(',', slots));
-                return;
-            }
-        }
-    }
-
-    /// <summary>
-    /// 校验结果事件中的 CarrierId 是否存在于 Host 下发的 S16F15/S14F9 作业计划。
-    /// 作用：仅基于 CarrierId 做快速校验，不阻断 S6F11 上报链路。
-    /// </summary>
-    private bool TryValidateCarrierInPlannedJobsForResultEvent(IDictionary<string, string> parameters)
-    {
-        var carrierId = ReadParameter(parameters, "CARRIERID", "RFID")?.Trim();
-        if (string.IsNullOrWhiteSpace(carrierId))
-        {
-            return false;
-        }
-
-        // 先匹配 S14F9 的 ControlJob CarrierInputSpec，命中即视为在计划内。
-        var hitInControlJobs = _jobPlanStorage
-            .GetAllControlJobs()
-            .Any(cj => cj.CarrierInputSpec.Any(x => string.Equals(x, carrierId, StringComparison.OrdinalIgnoreCase)));
-        if (hitInControlJobs)
-        {
-            return true;
-        }
-
-        // 兜底分支：再匹配 S16F15 的 ProcessJob Carriers，兼容仅下发 PJ 未下发 CJ 的现场时序。
-        return _jobPlanStorage
-            .GetAllProcessJobs()
-            .Any(pj => pj.Carriers.Any(x => string.Equals(x.CarrierId, carrierId, StringComparison.OrdinalIgnoreCase)));
-    }
-
-    /// <summary>
-    /// 根据通用事件 CEID 执行 Port 上下文后置处理。
-    /// 作用：在关键生命周期事件成功发送 S6F11 后，清理对应 Port 运行态，避免后续出现串批次。
-    /// </summary>
-    private void TryFinalizePortContextByEvent(uint ceid, IDictionary<string, string> parameters)
-    {
-        // 仅对 CarrierRemoved(1012) 与 LotCompleted(1005) 执行上下文清理。
-        if (ceid is not 1012 and not 1005)
-        {
-            return;
-        }
-
-        var portId = ReadParameter(parameters, "PORTID", "PORT", "LOADPORT")?.Trim();
-        if (string.IsNullOrWhiteSpace(portId))
-        {
-            // 兜底分支：未携带 PORTID 时尝试按 LOTID 反查 Port，上下文命中后再清理。
-            var lotId = ReadParameter(parameters, "LOTID")?.Trim();
-            if (!string.IsNullOrWhiteSpace(lotId) && _portContextStorage.TryGetByLotId(lotId, out var byLot))
-            {
-                portId = byLot.PortId;
-            }
-        }
-
-        // 定位到 Port 后再删除上下文，避免误删。
-        if (!string.IsNullOrWhiteSpace(portId))
-        {
-            _portContextStorage.RemoveByPortId(portId);
-        }
-    }
-
-    /*
-    /// <summary>
-    /// 已停用：检测结果统一通过 ReportEvent（CEID=1001）上报。
-    /// </summary>
-    public Task<ReportReply> ResultReport(WaferMessage request, ServerCallContext context)
-    {
-        throw new NotSupportedException("ResultReport 已停用，请改用 ReportEvent(CEID=1001)。");
-    }
-    */
 
     public override async Task<AlarmReply> ReportAlarm(AlarmReportRequest request, ServerCallContext context)
     {
@@ -446,6 +205,7 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
         uint alarmId = unchecked((uint)request.AlarmId);
         byte alarmCode = unchecked((byte)request.AlarmCode);
 
+        // 存入并更新内存中的Alarm表，以及添加数据库
         _alarmStore.Upsert(request);
 
         // 维护当前激活报警状态，供 S5F5/S5F6 查询链路使用。
@@ -505,57 +265,6 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
     }
 
     /// <summary>
-    /// 上报整盒晶圆检测完成，S6F11。
-    /// </summary>
-    public override async Task<ReportReply> ReportLotCompleted(LotCompletedMessage request, ServerCallContext context)
-    {
-        // 打印入站 gRPC 批次完成参数，便于联调确认结束态字段。
-        _logger.LogInformation(
-            "gRPC IN ReportLotCompleted. Peer={Peer}, PORTID={PortId}, LOTID={LotId}, STATUS={Status}",
-            context.Peer,
-            request.PortId,
-            request.LotId,
-            request.Status);
-
-        _logger.LogInformation(
-            "ReportLotCompleted received. PortId={PortId}, LotId={LotId}, Status={Status}, Peer={Peer}",
-            request.PortId,
-            request.LotId,
-            request.Status,
-            context.Peer);
-
-        var data = ActiveReportSxFyFunctions.BuildLotCompletedReport(
-            _secsGemContext.GetNextDataId(),
-            request.PortId,
-            request.LotId,
-            request.Status,
-            TryGetVid);
-
-        // 整盒完成后清理对应 Port 上下文，防止后续串批次。
-        if (!string.IsNullOrWhiteSpace(request.PortId))
-        {
-            _portContextStorage.RemoveByPortId(request.PortId);
-        }
-
-        var sent = await _activeSxFyDispatcher.SendS6F11Async(data, context.CancellationToken).ConfigureAwait(false);
-        if (sent)
-        {
-            _logger.LogInformation("S6F11 sent for ReportLotCompleted. CEID={CEID}, RPTID={RPTID}, PortId={PortId}, LotId={LotId}", data.CEID, data.Reports[0].RPTID, request.PortId, request.LotId);
-        }
-        else
-        {
-            _logger.LogWarning("Failed or skipped S6F11 send after ReportLotCompleted. PortId={PortId}, LotId={LotId}", request.PortId, request.LotId);
-        }
-
-        return new ReportReply
-        {
-            Success = true,
-            Code = 0,
-            Message = string.Empty
-        };
-    }
-
-    /// <summary>
     /// 请求切换远程在线状态。
     /// 规则：仅当当前为 OnLineLocal 时切换为 OnLineRemote 并返回成功。
     /// </summary>
@@ -590,8 +299,9 @@ public sealed class ReportGrpc : GY.SECS.ReportGrpcService.ReportGrpcServiceBase
                 Message = "切换成功，已进入远程在线状态。",
                 Online = true
             };
-        // 远程转本地
-        }else if (_device.IsOnline == DeviceOnlineState.OnLineRemote && request.Source == "local")
+            // 远程转本地
+        }
+        else if (_device.IsOnline == DeviceOnlineState.OnLineRemote && request.Source == "local")
         {
             _device.IsOnline = DeviceOnlineState.OnLineLocal;
             _vidValueStorage.UpsertByVid(1002, "Local");

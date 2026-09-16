@@ -63,7 +63,7 @@ namespace SECShandler.Interfaces
         public bool AutoStart { get; set; }
 
         /// <summary>
-        /// 停止触发事件列表（PRPAUSEEVENT）。
+        /// *停止触发事件列表（PRPAUSEEVENT）。
         /// </summary>
         public List<uint> PauseEvents { get; set; } = new();
 
@@ -78,12 +78,12 @@ namespace SECShandler.Interfaces
         public bool AutoStarted { get; set; }
 
         /// <summary>
-        /// 自动触发对应的 PortId。
+        /// *自动触发对应的 PortId。
         /// </summary>
         public string AutoStartedPortId { get; set; } = string.Empty;
 
         /// <summary>
-        /// 自动触发对应的 LotId。
+        /// *自动触发对应的 LotId。
         /// </summary>
         public string AutoStartedLotId { get; set; } = string.Empty;
 
