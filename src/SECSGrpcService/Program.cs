@@ -127,6 +127,20 @@ builder.Services.AddSingleton(sp =>
     .AddSingleton<NacosGrpcResolver>()
     .AddSingleton<SecsGemContext>()
     .AddSingleton<SecsEfemGrpc>()
+    .AddNacosAspNet(option =>
+    {
+        option.ServerAddresses = ["http://localhost:8848"];
+        option.DefaultTimeOut = 15000;
+        option.Namespace = "GWM";
+        option.ServiceName = "SECS";
+        option.GroupName = "GY";
+        option.ClusterName = "DEFAULT";
+        option.Weight = 100;
+        option.ConfigUseRpc = true;
+        option.NamingUseRpc = true;
+        option.Ip = grpcHost;
+        option.Port = grpcPort;
+    })
     // 存储运行过程中的一些数据的接口，后续需优化删减
     .AddSingleton<IMeasurementDispatcher, GrpcMeasurementDispatcher>()
     .AddSingleton<IActiveSxFyDispatcher, ActiveSxFyDispatcher>()
