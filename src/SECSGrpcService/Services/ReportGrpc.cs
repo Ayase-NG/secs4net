@@ -2,7 +2,7 @@ using Google.Protobuf;
 using Grpc.Core;
 using Grpc.Net.Client;
 using GY.EFEM;
-using GY.Server;
+using GY.SECSserver;
 using Nacos.V2;
 using SECSdata;
 using SECShandler.Functions;
@@ -31,7 +31,7 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
     private readonly IMeasurementDispatcher _measurementDispatcher;
     private readonly IReportStorage _reportStorage;
     private readonly IVidValueStorage _vidValueStorage;
-    private readonly Nacos.V2.INacosNamingService nacos;
+    private readonly Nacos.V2.INacosNamingService _nacos;
 
     public ReportGrpc(
         ILogger<ReportGrpc> logger,
@@ -68,6 +68,7 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
         _measurementDispatcher = measurementDispatcher;
         _reportStorage = reportStorage;
         _vidValueStorage = vidValueStorage;
+        _nacos = nacos;
     }
 
     /// <summary>
@@ -132,7 +133,7 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
                             {
                                 try
                                 {
-                                    var instance = await this.nacos.SelectOneHealthyInstance("EFEM", "GY");
+                                    var instance = await _nacos.SelectOneHealthyInstance("EFEM", "GY");
                                     if (instance == null)
                                     {
                                         _logger.LogError("({ServiceName}) 未在 Nacos 找到健康实例", "EFEM");

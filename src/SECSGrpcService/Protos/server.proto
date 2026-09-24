@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 
-package GY.server;
+package GY.SECSserver;
 
 // 被动接收接口定义（本项目作为 gRPC Server）。
 // 说明：本文件的所有 RPC 均为被动接收，外部系统调用本项目的 server。
