@@ -475,8 +475,8 @@ public sealed class SecsHandlerRuntimeState : IDevice, IReportStorage, IEventLin
     public DeviceRunStatus RunStatus { get; set; } = DeviceRunStatus.Unknown;
     public string RECIPEID { get; set; } = string.Empty;
     public string CurrentLotId { get; set; } = string.Empty;
-    public string ModelNumber { get; set; } = "GWL-20260612";
-    public string SoftwareRevision { get; set; } = "SECS-20260612";
+    public string ModelNumber { get; set; } = "GWM-V 1.0.0-202609";
+    public string SoftwareRevision { get; set; } = "SECS-1.0.0";
     public string Status { get; set; } = string.Empty;
 
     public Task StartProcessAsync(string? lotId) => Task.CompletedTask;
