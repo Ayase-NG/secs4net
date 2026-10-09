@@ -124,54 +124,6 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
         // 异步发送通用事件 S6F11，上报是否成功仍受 S2F33/S2F35/S2F37 门禁控制。
         var sent = await _activeSxFyDispatcher.SendS6F11Async(data, context.CancellationToken).ConfigureAwait(false);
 
-        // 通过Task.Run异步执行，避免阻塞 gRPC 上报链路。后续可改为事件总线或消息队列方式解耦。
-        if (eventName.Equals("MappingCompleted"))
-        {
-            if (_vidValueStorage.TryGetByName("CarrierID", out var carrierId))
-            {
-                _ = Task.Run(async () =>
-                            {
-                                try
-                                {
-                                    var instance = await _nacos.SelectOneHealthyInstance("EFEM", "GY");
-                                    if (instance == null)
-                                    {
-                                        _logger.LogError("({ServiceName}) 未在 Nacos 找到健康实例", "EFEM");
-                                        // S5F1上报内部通信异常，直接返回。
-                                        return;
-                                    }
-                                    var channel = GrpcChannel.ForAddress($"http://{instance.Ip}:{instance.Port}");
-                                    var client = new EFEM.EFEMClient(channel);
-                                    // 仅在能解析到有效 CARRIERID 时触发调度，避免误触发。
-                                    if (_vidValueStorage.TryGetByName("CarrierID", out var carrierId))
-                                    {
-                                        // 在PJ中查询是否有对应的Carrier，若有则下发后续流程。
-                                        var pJob = _jobPlanStorage.GetAllProcessJobs().FirstOrDefault(pj => pj.Carriers.Any(c => string.Equals(c.CarrierId, carrierId, StringComparison.OrdinalIgnoreCase)));
-                                        if (pJob is not null)
-                                        {
-                                            
-                                            _logger.LogInformation("Carrier {CarrierId} found in ProcessJob {PJID}. Start Test.", carrierId, pJob.PJID);
-                                            // 1.LoadCarrier
-                                            client.StartMeasurement(new NoParams());
-                                            // 2.MappingCompleted
-                                            // 3.依据PJob选择Recipe和SlotList
-                                            // 4.Start
-                                            client.StartMeasurement(new NoParams());
-                                        }
-                                        else
-                                        {
-                                            _logger.LogInformation("Carrier {CarrierId} not found in any ProcessJob. No PPSELECT will be triggered.", carrierId);
-                                        }
-                                    }
-                                }
-                                catch (Exception ex)
-                                {
-                                    _logger.LogError(ex, "Error in TryDispatchProcessProgramSelectOnCarrierEventAsync for MappingCompleted event.");
-                                }
-                            });
-            }
-
-        }
         return new ReportReply
         {
             Success = sent,

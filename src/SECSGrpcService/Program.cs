@@ -155,7 +155,7 @@ builder.Services.AddSingleton(sp =>
     .AddSingleton<IAlarmEnableStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>())
     .AddSingleton<IAlarmStateStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>())
     .AddSingleton<ITimeSyncStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>())
-    .AddSingleton<IS6F11SpoolStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>())
+    //.AddSingleton<IS6F11SpoolStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>()) S6F11上报缓存
     .AddSingleton<IPortContextStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>())
     .AddSingleton<IJobPlanStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>())
     .AddSingleton<IVidValueStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>())
@@ -189,7 +189,7 @@ Console.WriteLine("可测试入口: GY.EFEM.ReportGrpcService/ResultReport");
 Console.WriteLine("可测试入口: GY.EFEM.ReportGrpcService/ReportAlarm");
 Console.WriteLine("如需持续监听SECS PrimaryMessage，请在配置中设置 SecsListener:Enabled=true");
 
-// if 关键分支：只有交互式 Windows 进程显示测试窗体；服务/无人值守模式沿用原有启动方式。
+// 只有交互式 Windows 进程显示测试窗体；服务/无人值守模式沿用原有启动方式。
 if (Environment.UserInteractive)
 {
     // 异步调用说明：先启动 gRPC 宿主及后台监听，再显示共享监听器的测试窗体。

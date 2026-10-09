@@ -177,7 +177,7 @@ public sealed class SecsPrimaryMessageListenerService : BackgroundService
     {
         try
         {
-            // if 关键分支：连接与上下文必须由同一后台服务创建，不能在窗体重复创建。
+            // 日志打印和窗体显示的 SECS 收发内容共用一个适配器，避免重复实现。
             var adapter = new SecsGemLoggerAdapter(_logger, line => SmlLogged?.Invoke(line));
             _connector = new HsmsConnection(options, adapter);
             _secsGem = new SecsGem(options, _connector, adapter);
