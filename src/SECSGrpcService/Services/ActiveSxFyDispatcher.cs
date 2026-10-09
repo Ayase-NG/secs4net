@@ -295,7 +295,8 @@ public sealed class ActiveSxFyDispatcher : IActiveSxFyDispatcher
                     {
                         VID = value.VID,
                         CPName = value.CPName,
-                        CPVal = value.CPVal
+                        CPVal = value.CPVal,
+                        EncodedValue = value.EncodedValue?.ToArray()
                     });
                 }
                 else

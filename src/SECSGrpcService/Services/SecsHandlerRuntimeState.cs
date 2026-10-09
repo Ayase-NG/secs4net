@@ -962,7 +962,8 @@ public sealed class SecsHandlerRuntimeState : IDevice, IReportStorage, IEventLin
                         {
                             VID = v.VID,
                             CPName = v.CPName,
-                            CPVal = v.CPVal
+                            CPVal = v.CPVal,
+                            EncodedValue = v.EncodedValue?.ToArray()
                         })
                         .ToList()
                 })

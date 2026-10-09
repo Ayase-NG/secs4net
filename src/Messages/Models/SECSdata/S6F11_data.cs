@@ -1,5 +1,8 @@
-﻿using System;
+using System;
+using System.Buffers;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
+using Secs4Net;
 
 namespace SECSdata
 {
@@ -7,7 +10,7 @@ namespace SECSdata
     /// S6F11 "Event Report Send" 数据模型。
     /// 常见结构：L[3] { DATAID, CEID, REPORTS }
     /// REPORTS: L[n] { L[2] { RPTID, V-list } }
-    /// SML样例（VID/CPVal）：
+    /// 项目当前编码约定的 SML 样例（VID/CPVal）：
     /// &lt;L [3]
     ///   &lt;U1 1&gt;
     ///   &lt;U4 1001&gt;
@@ -62,7 +65,7 @@ namespace SECSdata
 
         /// <summary>
         /// 报告值列表（V-list）。
-        /// 每个元素结构为：L[2] { VID(U2), CPVal(A) }。
+        /// 当前项目每个元素结构为：L[2] { VID(U2), CPVal(任意 SECS-II Item) }。
         /// </summary>
         public List<S6F11_parameter_data> Values { get; set; } = new();
     }
@@ -84,8 +87,51 @@ namespace SECSdata
         public string CPName { get; set; } = string.Empty;
 
         /// <summary>
-        /// 参数值（CPVal）。
+        /// 兼容现有 ASCII 参数值；未设置 ValueItem 时编码为 A。
         /// </summary>
         public string CPVal { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 类型化的参数值（包含 List、数值等），优先于 CPVal 字符串参与编码。
+        /// </summary>
+        [JsonIgnore]
+        public Item? ValueItem
+        {
+            get
+            {
+                // 无类型化值时由构建器回退到现有 ASCII 文本。
+                if (EncodedValue is not { Length: > 0 })
+                {
+                    return null;
+                }
+
+                var bytes = new ReadOnlySequence<byte>(EncodedValue);
+                var item = Item.DecodeFromFullBuffer(ref bytes);
+                if (!bytes.IsEmpty)
+                {
+                    throw new InvalidOperationException("Invalid S6F11 encoded value: trailing data.");
+                }
+
+                return item;
+            }
+            set
+            {
+                // 清空类型化值时恢复使用 CPVal 文本。
+                if (value is null)
+                {
+                    EncodedValue = null;
+                    return;
+                }
+
+                var buffer = new ArrayBufferWriter<byte>();
+                value.EncodeTo(buffer);
+                EncodedValue = buffer.WrittenSpan.ToArray();
+            }
+        }
+
+        /// <summary>
+        /// ValueItem 的 SECS-II 二进制表示，供 S6F11 暂存快照跨重启保留原始类型和值。
+        /// </summary>
+        public byte[]? EncodedValue { get; set; }
     }
 }

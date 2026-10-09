@@ -4,6 +4,7 @@ using Grpc.Net.Client;
 using GY.EFEM;
 using GY.SECSserver;
 using Nacos.V2;
+using Secs4Net;
 using SECSdata;
 using SECShandler.Functions;
 using SECShandler.Interfaces;
@@ -111,15 +112,36 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
             };
         }
 
+        var typedValues = new Dictionary<ushort, Item>();
+        // for each 关键分支：仅转换能在 VID 映射中找到的类型化参数，保留 SECS-II 原始类型。
+        foreach (var kv in request.TypedParameters)
+        {
+            if (!_vidMap.TryGetVid(kv.Key, out var vid))
+            {
+                _logger.LogWarning("Typed event parameter {Name} is not mapped to a VID.", kv.Key);
+                continue;
+            }
+
+            try
+            {
+                typedValues[vid] = ConvertTypedEventValue(kv.Value);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return new ReportReply { Success = false, Code = 4, Message = $"参数 {kv.Key} 类型无效: {ex.Message}" };
+            }
+        }
+
         // 最小实现取首个绑定 RPTID 作为通用事件上报 RPTID。后续改为遍历RPTID列表，按 Host 配置的上报项组合发送多条 S6F11。
         var rptId = linkedRptIds[0];
-        var mergedParameters = GetVidMapByRptId(rptId, request.Parameters);
+        var mergedParameters = GetVidMapByRptId(rptId, request.Parameters, typedValues.Keys.ToHashSet());
         var data = ActiveReportSxFyFunctions.BuildGenericEventReport(
             _secsGemContext.GetNextDataId(),
             ceid,
             rptId,
             mergedParameters,
-            TryGetVid);
+            TryGetVid,
+            vid => typedValues.TryGetValue(vid, out var value) ? value : null);
 
         // 异步发送通用事件 S6F11，上报是否成功仍受 S2F33/S2F35/S2F37 门禁控制。
         var sent = await _activeSxFyDispatcher.SendS6F11Async(data, context.CancellationToken).ConfigureAwait(false);
@@ -354,9 +376,9 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
             }
 
             var value = kv.Value ?? string.Empty;
-            _vidValueStorage.UpsertByName(kv.Value, value);
+            _vidValueStorage.UpsertByName(kv.Key, value);
 
-            if (_vidMap.TryGetVid(kv.Value, out var vid))
+            if (_vidMap.TryGetVid(kv.Key, out var vid))
             {
                 _vidValueStorage.UpsertByVid(vid, value);
             }
@@ -371,7 +393,7 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
     /// _vidMap： VID映射表，name：vid。
     /// _vidValueStorage： VID动态值表，VID、NAME：VALUE。
     /// </summary>
-    private IReadOnlyDictionary<string, string> GetVidMapByRptId(uint rptId, IEnumerable<KeyValuePair<string, string>> parameters)
+    private IReadOnlyDictionary<string, string> GetVidMapByRptId(uint rptId, IEnumerable<KeyValuePair<string, string>> parameters, HashSet<ushort>? typedVids = null)
     {
         var report = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -396,6 +418,13 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
                 _logger.LogWarning("VID {VID} 未在 VID.csv 中定义对应参数名，忽略补齐。", vid);
                 continue;
             }
+            // if 关键分支：类型化值不转为字符串；占位键仅用于维持 RPTID 定义的 VID 顺序。
+            if (typedVids?.Contains(vid) == true)
+            {
+                report[cpName] = string.Empty;
+                continue;
+            }
+
             // 获取值
             if (_vidValueStorage.TryGetByVid(vid, out var valueByVid) && !string.IsNullOrWhiteSpace(valueByVid))
             {
@@ -405,6 +434,63 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
         }
 
         return report;
+    }
+
+    /// <summary>将 gRPC 类型化参数递归转换为 SECS-II Item，不根据参数名猜测数据类型。</summary>
+    private static Item ConvertTypedEventValue(EventParameterValue value)
+    {
+        // switch 关键分支：oneof 明确提供类型；未设置的分支不能默认为 ASCII。
+        return value.ValueCase switch
+        {
+            EventParameterValue.ValueOneofCase.Text => Item.A(value.Text),
+            EventParameterValue.ValueOneofCase.SignedInteger => BuildSignedEventValue(value.SignedInteger, value.SecsFormat),
+            EventParameterValue.ValueOneofCase.UnsignedInteger => BuildUnsignedEventValue(value.UnsignedInteger, value.SecsFormat),
+            EventParameterValue.ValueOneofCase.FloatingPoint => BuildFloatingEventValue(value.FloatingPoint, value.SecsFormat),
+            EventParameterValue.ValueOneofCase.BooleanValue => Item.Boolean(value.BooleanValue),
+            EventParameterValue.ValueOneofCase.Binary => Item.B(value.Binary.ToByteArray()),
+            EventParameterValue.ValueOneofCase.List => Item.L(value.List.Items.Select(ConvertTypedEventValue).ToArray()),
+            _ => throw new InvalidOperationException("oneof value must be set")
+        };
+    }
+
+    /// <summary>按显式 SECS-II 格式编码有符号整数，校验目标宽度范围。</summary>
+    private static Item BuildSignedEventValue(long value, string format)
+    {
+        // switch 关键分支：空格式沿用 I8；溢出或不匹配时拒绝而不是截断数值。
+        return format.Trim().ToUpperInvariant() switch
+        {
+            "" or "I8" => Item.I8(value),
+            "I1" when value is >= sbyte.MinValue and <= sbyte.MaxValue => Item.I1((sbyte)value),
+            "I2" when value is >= short.MinValue and <= short.MaxValue => Item.I2((short)value),
+            "I4" when value is >= int.MinValue and <= int.MaxValue => Item.I4((int)value),
+            _ => throw new InvalidOperationException($"Invalid signed integer format or value: {format}")
+        };
+    }
+
+    /// <summary>按显式 SECS-II 格式编码无符号整数，校验目标宽度范围。</summary>
+    private static Item BuildUnsignedEventValue(ulong value, string format)
+    {
+        // switch 关键分支：空格式沿用 U8；溢出或不匹配时拒绝而不是截断数值。
+        return format.Trim().ToUpperInvariant() switch
+        {
+            "" or "U8" => Item.U8(value),
+            "U1" when value <= byte.MaxValue => Item.U1((byte)value),
+            "U2" when value <= ushort.MaxValue => Item.U2((ushort)value),
+            "U4" when value <= uint.MaxValue => Item.U4((uint)value),
+            _ => throw new InvalidOperationException($"Invalid unsigned integer format or value: {format}")
+        };
+    }
+
+    /// <summary>按显式 SECS-II 格式编码浮点数，避免 F4 范围溢出。</summary>
+    private static Item BuildFloatingEventValue(double value, string format)
+    {
+        // switch 关键分支：空格式沿用 F8；F4 不接受会溢出的有限值。
+        return format.Trim().ToUpperInvariant() switch
+        {
+            "" or "F8" => Item.F8(value),
+            "F4" when !double.IsFinite(value) || Math.Abs(value) <= float.MaxValue => Item.F4((float)value),
+            _ => throw new InvalidOperationException($"Invalid floating-point format or value: {format}")
+        };
     }
 
     /// <summary>

@@ -69,8 +69,32 @@ message GenericEventReportRequest {
   // 事件名（通过 CEID.csv 映射到 CEID）。
   string eventName = 1;
 
-  // 关键参数（键值对，键建议使用 CPName）。
+  // 兼容既有客户端的 ASCII 参数（键建议使用 CPName）。
   map<string, string> parameters = 2;
+
+  // 类型化参数，与 parameters 同名时以此字段为准。
+  map<string, EventParameterValue> typedParameters = 3;
+}
+
+// SECS-II 事件参数值：支持标量、二进制和递归列表。
+message EventParameterValue {
+  oneof value {
+	string text = 1;
+	int64 signedInteger = 2;
+	uint64 unsignedInteger = 3;
+	double floatingPoint = 4;
+	bool booleanValue = 5;
+	bytes binary = 6;
+	EventParameterList list = 7;
+  }
+
+  // 数值类型可选的 SECS-II 格式：U1/U2/U4/U8、I1/I2/I4/I8、F4/F8；为空时默认 U8/I8/F8。
+  string secsFormat = 8;
+}
+
+// 用消息包装 repeated 值，以便作为 oneof 的列表分支。
+message EventParameterList {
+  repeated EventParameterValue items = 1;
 }
 
 // 结果上报回复。
