@@ -21,7 +21,7 @@ namespace SECShandler.Functions
         public static async Task HandleS2F41Async(
             PrimaryMessageWrapper primary,
             IDevice device,
-            IMeasurementDispatcher measurementDispatcher,
+            ICommandDispatcher commandDispatcher,
             ISecsInteractionHistoryStore interactionHistoryStore,
             IIdempotencyGuard idempotencyGuard,
             CancellationToken cancellationToken)
@@ -62,19 +62,19 @@ namespace SECShandler.Functions
                 switch (rcmd)
                 {
                     case "START":
-                        await measurementDispatcher.DispatchStartMeasurementAsync(data, cancellationToken);
+                        await commandDispatcher.DispatchStartMeasurementAsync(data, cancellationToken);
                         break;
                     case "STOP":
-                        await measurementDispatcher.DispatchStopMeasurementAsync(data, cancellationToken);
+                        await commandDispatcher.DispatchStopMeasurementAsync(data, cancellationToken);
                         break;
                     case "PAUSE":
-                        await measurementDispatcher.DispatchPauseMeasurementAsync(data, cancellationToken);
+                        await commandDispatcher.DispatchPauseMeasurementAsync(data, cancellationToken);
                         break;
                     case "RESUME":
-                        await measurementDispatcher.DispatchResumeMeasurementAsync(data, cancellationToken);
+                        await commandDispatcher.DispatchResumeMeasurementAsync(data, cancellationToken);
                         break;
                     case "PPSELECT":
-                        await measurementDispatcher.DispatchProcessProgramSelectAsync(data, cancellationToken);
+                        await commandDispatcher.DispatchProcessProgramSelectAsync(data, cancellationToken);
                         break;
                     default:
                         // 不支持的 RCMD 返回 HCACK=1 + RCMD 参数ACK。
@@ -96,7 +96,7 @@ namespace SECShandler.Functions
         public static async Task HandleS2F49Async(
             PrimaryMessageWrapper primary,
             IDevice device,
-            IMeasurementDispatcher measurementDispatcher,
+            ICommandDispatcher commandDispatcher,
             ISecsInteractionHistoryStore interactionHistoryStore,
             IIdempotencyGuard idempotencyGuard,
             CancellationToken cancellationToken)
@@ -126,7 +126,7 @@ namespace SECShandler.Functions
             SecsGem secsGem,
             PrimaryMessageWrapper primary,
             IDevice device,
-            IMeasurementDispatcher measurementDispatcher,
+            ICommandDispatcher commandDispatcher,
             IIdempotencyGuard idempotencyGuard,
             IPortContextStorage portContextStorage,
             IJobPlanStorage jobPlanStorage,

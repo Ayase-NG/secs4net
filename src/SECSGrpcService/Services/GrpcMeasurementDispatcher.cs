@@ -5,19 +5,19 @@ using SECShandler.Interfaces;
 
 namespace SECSGrpcService.Services;
 
-public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
+public sealed class GrpcCommandDispatcher : ICommandDispatcher
 {
     private readonly IConfiguration _configuration;
     private readonly SecsEfemGrpc _secsEfemGrpc;
     private readonly IDevice _device;
-    private readonly ILogger<GrpcMeasurementDispatcher> _logger;
+    private readonly ILogger<GrpcCommandDispatcher> _logger;
     private readonly IPortContextStorage _portContextStorage;
 
-    public GrpcMeasurementDispatcher(
+    public GrpcCommandDispatcher(
         IConfiguration configuration,
         SecsEfemGrpc secsEfemGrpc,
         IDevice device,
-        ILogger<GrpcMeasurementDispatcher> logger,
+        ILogger<GrpcCommandDispatcher> logger,
         IPortContextStorage portContextStorage)
     {
         _configuration = configuration;
@@ -30,25 +30,6 @@ public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
     public async Task DispatchStartMeasurementAsync(S2F41_data data, CancellationToken cancellationToken)
     {
         var (targetServiceName, targetGroup, targetClusters, targetUseHttps, fallbackAddresses) = GetTargetOptions();
-
-        var status = await _secsEfemGrpc.GetStatusFromServiceAsync(
-            targetServiceName,
-            targetGroup,
-            targetClusters,
-            targetUseHttps,
-            fallbackAddresses,
-            cancellationToken);
-
-        if (status is null)
-        {
-            throw new InvalidOperationException("START rejected: EFEM StatusReport failed before start.");
-        }
-
-        var runStatus = (status.RunStatus ?? string.Empty).Trim().ToLowerInvariant();
-        if (runStatus is "running" or "jam")
-        {
-            throw new InvalidOperationException($"START rejected: EFEM RunStatus={status.RunStatus}.");
-        }
 
         _logger.LogInformation("S2F41 START -> StartMeasurement trigger. (ignore START params)");
 
@@ -158,31 +139,6 @@ public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
         _logger.LogInformation("S2F41 PPSELECT -> ProcessProgramSelect payload. PPID={PPID}, Mode={Mode}, PortId={PortId}, LotId={LotId}, SlotsList={Slots}", recipe.PPID, recipe.Mode, recipe.PortId, recipe.LotId, slotsText);
 
         await _secsEfemGrpc.SendProcessProgramSelectToServiceAsync(targetServiceName, targetGroup, targetClusters, targetUseHttps, recipe, fallbackAddresses, cancellationToken);
-    }
-
-    public async Task DispatchSlotMapSelectAsync(S3F17_data data, CancellationToken cancellationToken)
-    {
-        var (targetServiceName, targetGroup, targetClusters, targetUseHttps, fallbackAddresses) = GetTargetOptions();
-
-        // S3F17 对应独立槽位选择链路，和 PPSELECT 分离。
-        var message = new SlotMapSelectMessage
-        {
-            PortId = string.Empty,
-            LotId = data.LOTID ?? string.Empty
-        };
-        message.SlotsList.Add(data.SlotMap);
-
-        var slotsText = message.SlotsList.Count > 0 ? string.Join(',', message.SlotsList) : "<empty>";
-        _logger.LogInformation("S3F17 -> SlotMapSelect payload. LotId={LotId}, SlotsList={Slots}", message.LotId, slotsText);
-
-        await _secsEfemGrpc.SendSlotMapSelectToServiceAsync(
-            targetServiceName,
-            targetGroup,
-            targetClusters,
-            targetUseHttps,
-            message,
-            fallbackAddresses,
-            cancellationToken);
     }
 
     private (string ServiceName, string GroupName, string[] Clusters, bool UseHttps, string[] FallbackAddresses) GetTargetOptions()
@@ -340,5 +296,36 @@ public sealed class GrpcMeasurementDispatcher : IMeasurementDispatcher
             default:
                 return false;
         }
+    }
+
+    private enum Port : int{
+        Unload = 0,
+        Load = 1,
+    }
+
+    // 实现Foup载入的接口
+    public async Task DispatchLoadCassetteAsync(S3F17_data data, CancellationToken cancellationToken)
+    {
+        var (targetServiceName, targetGroup, targetClusters, targetUseHttps, fallbackAddresses) = GetTargetOptions();
+        _logger.LogInformation("S3F17 Load Cassette -> CarrierId={CARRIERID}, Action={CARRIERACTION}, PortId={PTN}", data.CARRIERID, data.CARRIERACTION, data.PTN);
+        PortInfo portInfo = new PortInfo()
+        {
+            PortId = data.PTN,
+            PortCmd = (int)Port.Load,
+        };
+        await _secsEfemGrpc.SendTakeLoadPortToServiceAsync(targetServiceName, targetGroup, targetClusters, targetUseHttps, portInfo, fallbackAddresses, cancellationToken);
+    }
+
+    // 实现Foup载出的接口
+    public async Task DispatchUnLoadCassetteAsync(S3F17_data data, CancellationToken cancellationToken)
+    {
+        var (targetServiceName, targetGroup, targetClusters, targetUseHttps, fallbackAddresses) = GetTargetOptions();
+        _logger.LogInformation("S3F17 Load Cassette -> CarrierId={CARRIERID}, Action={CARRIERACTION}, PortId={PTN}", data.CARRIERID, data.CARRIERACTION, data.PTN);
+        PortInfo portInfo = new PortInfo()
+        {
+            PortId = data.PTN,
+            PortCmd = (int)Port.Unload,
+        };
+        await _secsEfemGrpc.SendTakeLoadPortToServiceAsync(targetServiceName, targetGroup, targetClusters, targetUseHttps, portInfo, fallbackAddresses, cancellationToken);
     }
 }

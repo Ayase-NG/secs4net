@@ -28,13 +28,14 @@ namespace SECShandler.Interfaces
         public string LotId { get; set; } = string.Empty;
     }
 
-    public interface IMeasurementDispatcher
+    public interface ICommandDispatcher
     {
         Task DispatchStartMeasurementAsync(S2F41_data data, CancellationToken cancellationToken);
         Task DispatchStopMeasurementAsync(S2F41_data data, CancellationToken cancellationToken);
         Task DispatchPauseMeasurementAsync(S2F41_data data, CancellationToken cancellationToken);
         Task DispatchResumeMeasurementAsync(S2F41_data data, CancellationToken cancellationToken);
         Task DispatchProcessProgramSelectAsync(S2F41_data data, CancellationToken cancellationToken);
-        Task DispatchSlotMapSelectAsync(S3F17_data data, CancellationToken cancellationToken);
+        Task DispatchLoadCassetteAsync(S3F17_data data, CancellationToken cancellationToken);
+        Task DispatchUnLoadCassetteAsync(S3F17_data data, CancellationToken cancellationToken);
     }
 }

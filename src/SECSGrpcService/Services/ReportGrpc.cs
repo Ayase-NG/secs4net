@@ -28,7 +28,7 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
     private readonly IAlarmStateStorage _alarmStateStorage;
     private readonly IPortContextStorage _portContextStorage;
     private readonly IJobPlanStorage _jobPlanStorage;
-    private readonly IMeasurementDispatcher _measurementDispatcher;
+    private readonly ICommandDispatcher _measurementDispatcher;
     private readonly IReportStorage _reportStorage;
     private readonly IVidValueStorage _vidValueStorage;
     private readonly Nacos.V2.INacosNamingService _nacos;
@@ -47,7 +47,7 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
         IAlarmStateStorage alarmStateStorage,
         IPortContextStorage portContextStorage,
         IJobPlanStorage jobPlanStorage,
-        IMeasurementDispatcher measurementDispatcher,
+        ICommandDispatcher measurementDispatcher,
         IReportStorage reportStorage,
         IVidValueStorage vidValueStorage,
         INacosNamingService nacos)

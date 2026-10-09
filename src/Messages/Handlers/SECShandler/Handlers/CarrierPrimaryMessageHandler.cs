@@ -5,21 +5,13 @@ using SECShandler.Interfaces;
 namespace SECShandler.Handlers
 {
     /// <summary>
-    /// 载具/批次相关 PrimaryMessage 处理器。
+    /// 载具操作相关 PrimaryMessage 处理器。
     /// 当前负责处理 S3F17。
     /// </summary>
     public sealed class CarrierPrimaryMessageHandler : IPrimaryMessageHandler
     {
-        private readonly IDevice _device;
-        private readonly IMeasurementDispatcher _measurementDispatcher;
-
-        public CarrierPrimaryMessageHandler(IDevice device, IMeasurementDispatcher measurementDispatcher)
-        {
-            _device = device;
-            _measurementDispatcher = measurementDispatcher;
-        }
-
-        // 本处理器负责处理 S3F17（LOTID + SlotMap 下发），注册进 SupportedMessages。
+        private readonly ICommandDispatcher _commandDispatcher;
+        // 本处理器负责处理 S3F17 载具操作请求，注册进 SupportedMessages。
         public IEnumerable<(int S, int F)> SupportedMessages =>
         [
             (3, 17)
@@ -29,8 +21,8 @@ namespace SECShandler.Handlers
 
         public async Task HandleAsync(SecsGem secsGem, PrimaryMessageWrapper primaryMessage, CancellationToken cancellationToken)
         {
-            // 将 S3F17 分发到 CarrierSxFyFunctions 进行解析与状态更新。
-            await CarrierSxFyFunctions.HandleS3F17Async(primaryMessage, _device, _measurementDispatcher, cancellationToken);
+            // 异步调用说明：将 S3F17 分发到共享函数进行解析与应答。
+            await CarrierSxFyFunctions.HandleS3F17Async(primaryMessage, _commandDispatcher, cancellationToken);
         }
     }
 }

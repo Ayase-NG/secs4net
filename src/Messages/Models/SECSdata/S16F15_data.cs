@@ -47,9 +47,19 @@ namespace SECSdata
         public string MF { get; set; } = string.Empty;
 
         /// <summary>
+        /// 该作业包含的载具列表。
+        /// </summary>
+        public List<S16F15_carrier_data> Carriers { get; set; } = new();
+
+        /// <summary>
         /// 配方 ID（来自 PROCESS_SPEC 的第 2 项）。
         /// </summary>
         public string RecipeId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 配方参数修改，暂不使用。
+        /// </summary>
+        public bool RecipeEdit { get; set; } = false;
         
         /// <summary>
         /// 是否自动作业。
@@ -57,13 +67,9 @@ namespace SECSdata
         public bool PRPROCESSSTART { get; set; } = true;
 
         /// <summary>
-        /// 存入CEID列表，定义停止触发事件。
+        /// 存入CEID列表，定义暂停触发事件。
         /// </summary>
         public List<uint> PRPAUSEEVENT { get; set; } = new();
-        /// <summary>
-        /// 该作业包含的载具列表。
-        /// </summary>
-        public List<S16F15_carrier_data> Carriers { get; set; } = new();
     }
 
     /// <summary>

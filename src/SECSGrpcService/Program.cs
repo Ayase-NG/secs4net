@@ -142,7 +142,7 @@ builder.Services.AddSingleton(sp =>
         option.Port = grpcPort;
     })
     // 存储运行过程中的一些数据的接口，后续需优化删减
-    .AddSingleton<IMeasurementDispatcher, GrpcMeasurementDispatcher>()
+    .AddSingleton<ICommandDispatcher, GrpcCommandDispatcher>()
     .AddSingleton<IActiveSxFyDispatcher, ActiveSxFyDispatcher>()
     .AddSingleton<SecsHandlerRuntimeState>()
     .AddSingleton<IDevice>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>())

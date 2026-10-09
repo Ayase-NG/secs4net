@@ -6,7 +6,7 @@ namespace SECShandler.Handlers
 {
     public sealed class RemoteCommandPrimaryMessageHandler : IPrimaryMessageHandler
     {
-        private readonly IMeasurementDispatcher _measurementDispatcher;
+        private readonly ICommandDispatcher _measurementDispatcher;
         private readonly IDevice _device;
         private readonly ISecsInteractionHistoryStore _interactionHistoryStore;
         private readonly IIdempotencyGuard _idempotencyGuard;
@@ -14,7 +14,7 @@ namespace SECShandler.Handlers
         private readonly IJobPlanStorage _jobPlanStorage;
 
         public RemoteCommandPrimaryMessageHandler(
-            IMeasurementDispatcher startMeasurementDispatcher,
+            ICommandDispatcher startMeasurementDispatcher,
             IDevice device,
             ISecsInteractionHistoryStore interactionHistoryStore,
             IIdempotencyGuard idempotencyGuard,

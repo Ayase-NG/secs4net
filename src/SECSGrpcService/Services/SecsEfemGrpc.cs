@@ -108,66 +108,19 @@ namespace SECSGrpcService.Services
         }
 
         /// <summary>
-        /// 从 Nacos 动态发现服务实例后发送 SlotMapSelect。
+        /// 从 Nacos 动态发现服务实例后发送 ProcessProgramSelect。
         /// </summary>
-        public async Task SendSlotMapSelectToServiceAsync(
+        public async Task SendTakeLoadPortToServiceAsync(
             string serviceName,
             string groupName,
             IEnumerable<string>? clusters,
             bool useHttps,
-            SlotMapSelectMessage slotMapMessage,
+            PortInfo port,
             IEnumerable<string>? fallbackAddresses = null,
             CancellationToken cancellationToken = default)
         {
             var addresses = await _nacosGrpcResolver.ResolveAddressesAsync(serviceName, groupName, clusters, useHttps, fallbackAddresses, cancellationToken);
-            await SendSlotMapSelectToClientsAsync(addresses, slotMapMessage, cancellationToken);
-        }
-
-        /// <summary>
-        /// 从 Nacos 动态发现服务实例后调用 StatusReport（无参）并返回首个成功结果。
-        /// </summary>
-        public async Task<StatusReply?> GetStatusFromServiceAsync(
-            string serviceName,
-            string groupName,
-            IEnumerable<string>? clusters,
-            bool useHttps,
-            IEnumerable<string>? fallbackAddresses = null,
-            CancellationToken cancellationToken = default)
-        {
-            var addresses = await _nacosGrpcResolver.ResolveAddressesAsync(serviceName, groupName, clusters, useHttps, fallbackAddresses, cancellationToken);
-            return await GetStatusFromClientsAsync(addresses, cancellationToken);
-        }
-
-        /// <summary>
-        /// 对指定远端地址列表发送 SlotMapSelect。
-        /// </summary>
-        public async Task SendSlotMapSelectToClientsAsync(IEnumerable<string> targetAddresses, SlotMapSelectMessage slotMapMessage, CancellationToken cancellationToken = default)
-        {
-            if (targetAddresses == null) return;
-
-            foreach (var address in targetAddresses)
-            {
-                if (string.IsNullOrWhiteSpace(address)) continue;
-
-                try
-                {
-                    using var channel = GrpcChannel.ForAddress(address);
-                    var client = new EFEM.EFEMClient(channel.CreateCallInvoker());
-                    var call = client.SlotMapSelectAsync(slotMapMessage, cancellationToken: CreateLinkedToken(cancellationToken));
-                    var reply = await call.ResponseAsync.ConfigureAwait(false);
-                    _logger.LogInformation("SlotMapSelect -> {Address} returned {Code}: {Msg}", address, reply.MessageCode, reply.Message);
-                }
-                catch (RpcException rex)
-                {
-                    _logger.LogError(rex, "SlotMapSelect RPC to {Address} failed", address);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to send SlotMapSelect to {Address}", address);
-                }
-
-                if (cancellationToken.IsCancellationRequested) break;
-            }
+            await SendTakeLoadPortToClientsAsync(addresses, port, cancellationToken);
         }
 
         /// <summary>
@@ -332,11 +285,11 @@ namespace SECSGrpcService.Services
         }
 
         /// <summary>
-        /// 对指定远端地址列表请求状态，返回首个成功响应；全部失败时返回 null。
+        /// 从 Nacos 动态发现服务实例后发送 StartMeasurement（无参）。
         /// </summary>
-        public async Task<StatusReply?> GetStatusFromClientsAsync(IEnumerable<string> targetAddresses, CancellationToken cancellationToken = default)
+        public async Task SendTakeLoadPortToClientsAsync(IEnumerable<string> targetAddresses, PortInfo port, CancellationToken cancellationToken = default)
         {
-            if (targetAddresses == null) return null;
+            if (targetAddresses == null) return;
 
             foreach (var address in targetAddresses)
             {
@@ -346,24 +299,21 @@ namespace SECSGrpcService.Services
                 {
                     using var channel = GrpcChannel.ForAddress(address);
                     var client = new EFEM.EFEMClient(channel.CreateCallInvoker());
-                    var call = client.StatusReportAsync(new NoParams(), cancellationToken: CreateLinkedToken(cancellationToken));
+                    var call = client.TakeLoadPortAsync(port, cancellationToken: CreateLinkedToken(cancellationToken));
                     var reply = await call.ResponseAsync.ConfigureAwait(false);
-                    _logger.LogInformation("StatusReport -> {Address} returned {Code}: {Msg}, Mode={Mode}, RunStatus={RunStatus}", address, reply.MessageCode, reply.Message, reply.Mode, reply.RunStatus);
-                    return reply;
+                    _logger.LogInformation("TakeLoadPort -> {Address} returned {Code}: {Msg}", address, reply.MessageCode, reply.Message);
                 }
                 catch (RpcException rex)
                 {
-                    _logger.LogError(rex, "StatusReport RPC to {Address} failed", address);
+                    _logger.LogError(rex, "TakeLoadPort RPC to {Address} failed", address);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to send StatusReport to {Address}", address);
+                    _logger.LogError(ex, "Failed to send TakeLoadPort to {Address}", address);
                 }
 
                 if (cancellationToken.IsCancellationRequested) break;
             }
-
-            return null;
         }
 
         /// <summary>
