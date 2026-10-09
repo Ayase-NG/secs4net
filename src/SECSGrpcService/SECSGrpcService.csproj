@@ -1,9 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+	  <OutputType>Exe</OutputType>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,7 +23,14 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Secs4Net\Secs4Net.csproj" />
+    <ProjectReference Include="..\Secs4Net.Sml\Secs4Net.Sml.csproj" />
     <ProjectReference Include="..\Messages\Handlers\SECShandler\SECShandler.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Views\SecsForm.Designer.cs">
+      <DependentUpon>SecsForm.cs</DependentUpon>
+    </Compile>
   </ItemGroup>
 
 </Project>

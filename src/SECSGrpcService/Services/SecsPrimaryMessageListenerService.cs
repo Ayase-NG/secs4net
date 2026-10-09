@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Options;
 using Secs4Net;
+using Secs4Net.Sml;
 using SECShandler.Interfaces;
 
 namespace SECSGrpcService.Services;
@@ -15,8 +17,24 @@ public sealed class SecsPrimaryMessageListenerService : BackgroundService
     private readonly IReadOnlyDictionary<(int S, int F), IPrimaryMessageHandler> _handlerRoutes;
     private readonly SecsGemContext _secsGemContext;
     private readonly ISecsInteractionHistoryStore _interactionHistoryStore;
+    private readonly SemaphoreSlim _listenGate = new(1, 1);
+    private CancellationToken _hostToken;
+    private CancellationTokenSource? _listenCancellation;
+    private Task? _listenTask;
     private HsmsConnection? _connector;
     private SecsGem? _secsGem;
+
+    /// <summary>连接状态变化时通知测试界面。</summary>
+    public event Action<string>? ConnectionStatusChanged;
+
+    /// <summary>收发 SECS 消息时通知测试界面。</summary>
+    public event Action<string>? SmlLogged;
+
+    /// <summary>当前是否有 SECS 监听任务。</summary>
+    public bool IsListening => _listenTask is { IsCompleted: false };
+
+    /// <summary>供新打开的窗体读取当前连接状态。</summary>
+    public string ConnectionStatus => _connector?.State.ToString() ?? (IsListening ? "Starting" : "Stopped");
 
     public SecsPrimaryMessageListenerService(
         ILogger<SecsPrimaryMessageListenerService> logger,
@@ -43,17 +61,37 @@ public sealed class SecsPrimaryMessageListenerService : BackgroundService
     /// <param name="stoppingToken">宿主停止令牌，用于优雅退出监听循环。</param>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // 读取监听总开关；未启用则直接返回，不启动 SECS 监听。
+        _hostToken = stoppingToken;
+
+        // if 关键分支：未启用自动监听时仍保持后台服务运行，允许窗体稍后启动。
         var section = _configuration.GetSection("SecsListener");
         var enabled = section.GetValue<bool>("Enabled", false);
-        if (!enabled)
+        if (enabled)
         {
-            _logger.LogInformation("SecsListener is disabled. Set `SecsListener:Enabled=true` to enable primary message listening.");
-            return;
+            // 异步调用说明：按文件配置自动启动唯一的 SECS 监听任务。
+            await StartListeningAsync(CreateOptions(section)).ConfigureAwait(false);
         }
 
-        // 从配置构建 SecsGemOptions（含 Active/Passive 模式、网络参数与超时参数）。
-        var options = Options.Create(new SecsGemOptions
+        try
+        {
+            // 异步调用说明：保持后台服务存活，以便窗体随时启动或停止 HSMS。
+            await Task.Delay(Timeout.Infinite, stoppingToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // if 关键分支：宿主关闭时停止唯一的监听任务。
+        }
+        finally
+        {
+            // 异步调用说明：宿主退出前完成监听清理，避免占用端口。
+            await StopListeningAsync().ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>从配置生成 HSMS 参数，供自动启动与窗体初始值共用。</summary>
+    public static SecsGemOptions CreateOptions(IConfiguration section)
+    {
+        return new SecsGemOptions
         {
             IsActive = section.GetValue<bool>("IsActive", false),
             IpAddress = section.GetValue<string>("IpAddress", "127.0.0.1") ?? "127.0.0.1",
@@ -65,39 +103,114 @@ public sealed class SecsPrimaryMessageListenerService : BackgroundService
             T6 = section.GetValue<int>("T6", 5000),
             T7 = section.GetValue<int>("T7", 10000),
             T8 = section.GetValue<int>("T8", 5000)
-        });
-
-        // 初始化 HSMS 连接与 SECS/GEM 通讯对象。
-        _connector = new HsmsConnection(options, new SecsGemLoggerAdapter(_logger));
-        _secsGem = new SecsGem(options, _connector, new SecsGemLoggerAdapter(_logger));
-        _secsGemContext.Attach(_secsGem);
-
-        // 连接状态变化日志。
-        _connector.ConnectionChanged += (_, state) =>
-        {
-            _logger.LogInformation("SECS connection state changed: {State}", state);
         };
+    }
 
-        _logger.LogInformation("Starting SECS primary message listener. IsActive={IsActive}, Address={Ip}:{Port}, DeviceId={DeviceId}",
-            options.Value.IsActive, options.Value.IpAddress, options.Value.Port, options.Value.DeviceId);
-
+    /// <summary>用当前界面参数启动唯一的 SECS 监听；已启动时拒绝重复绑定。</summary>
+    public async Task StartListeningAsync(SecsGemOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        // 异步调用说明：串行化启动/停止，避免多次点击导致端口重复绑定。
+        await _listenGate.WaitAsync().ConfigureAwait(false);
         try
         {
+            // if 关键分支：现有监听尚未清理时不能创建第二个连接。
+            if (IsListening)
+            {
+                throw new InvalidOperationException("SECS listener is already running. Stop it before changing connection settings.");
+            }
+
+            _listenCancellation?.Dispose();
+            _listenCancellation = CancellationTokenSource.CreateLinkedTokenSource(_hostToken);
+            var token = _listenCancellation.Token;
+            _listenTask = Task.Run(() => StartListenAsync(Options.Create(options), token), token);
+        }
+        finally
+        {
+            _listenGate.Release();
+        }
+    }
+
+    /// <summary>取消监听并等待 HSMS 和 SECS/GEM 资源释放，不停止 gRPC 宿主。</summary>
+    public async Task StopListeningAsync()
+    {
+        // 异步调用说明：等待当前启动或停止动作完成后再取消监听。
+        await _listenGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            // if 关键分支：未启动时直接返回，重复点击停止是安全的。
+            if (_listenCancellation is null)
+            {
+                return;
+            }
+
+            _listenCancellation.Cancel();
+            if (_listenTask is not null)
+            {
+                try
+                {
+                    // 异步调用说明：等待连接接收循环结束并解绑共享 SecsGem。
+                    await _listenTask.ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (_listenCancellation.IsCancellationRequested)
+                {
+                    // if 关键分支：尚未运行就取消的任务没有资源需要释放。
+                }
+            }
+
+            _listenCancellation.Dispose();
+            _listenCancellation = null;
+            _listenTask = null;
+        }
+        finally
+        {
+            _listenGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// 使用指定的 SECS 配置启动监听，负责连接创建、消息接收及退出时的资源释放。
+    /// </summary>
+    /// <param name="options">HSMS 连接及 SECS/GEM 通讯参数。</param>
+    /// <param name="cancellationToken">停止监听时用于取消连接和接收循环的令牌。</param>
+    private async Task StartListenAsync(IOptions<SecsGemOptions> options, CancellationToken cancellationToken)
+    {
+        try
+        {
+            // if 关键分支：连接与上下文必须由同一后台服务创建，不能在窗体重复创建。
+            var adapter = new SecsGemLoggerAdapter(_logger, line => SmlLogged?.Invoke(line));
+            _connector = new HsmsConnection(options, adapter);
+            _secsGem = new SecsGem(options, _connector, adapter);
+            _secsGemContext.Attach(_secsGem);
+
+            // 连接状态变化时向窗口发布状态，不在连接线程操作 WinForms 控件。
+            _connector.ConnectionChanged += (_, state) =>
+            {
+                _logger.LogInformation("SECS connection state changed: {State}", state);
+                ConnectionStatusChanged?.Invoke(state.ToString());
+            };
+
+            _logger.LogInformation("Starting SECS primary message listener. IsActive={IsActive}, Address={Ip}:{Port}, DeviceId={DeviceId}",
+                options.Value.IsActive, options.Value.IpAddress, options.Value.Port, options.Value.DeviceId);
+
             // 启动 HSMS 连接。
-            _connector.Start(stoppingToken);
+            _connector.Start(cancellationToken);
 
             // 持续读取对端发送的 PrimaryMessage，并交给分发器处理。
-            await foreach (var primaryMessage in _secsGem.GetPrimaryMessageAsync(stoppingToken))
+            // 异步调用说明：读取 Host 主消息，直到连接结束或收到停止指令。
+            await foreach (var primaryMessage in _secsGem.GetPrimaryMessageAsync(cancellationToken))
             {
                 var msg = primaryMessage.PrimaryMessage;
                 _logger.LogInformation("收到 PrimaryMessage: S{S}F{F}, ReplyExpected={ReplyExpected}", msg.S, msg.F, msg.ReplyExpected);
 
                 // 入站关键消息先做追溯落库，便于生产问题追踪。
-                await SaveInboundInteractionIfKeyMessageAsync(msg, stoppingToken).ConfigureAwait(false);
+                // 异步调用说明：记录关键入站消息，便于生产问题追溯。
+                await SaveInboundInteractionIfKeyMessageAsync(msg, cancellationToken).ConfigureAwait(false);
 
                 try
                 {
-                    await DispatchPrimaryMessageAsync(_secsGem, primaryMessage, stoppingToken);
+                    // 异步调用说明：通过已注册的处理器处理当前 SECS 主消息。
+                    await DispatchPrimaryMessageAsync(_secsGem, primaryMessage, cancellationToken).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -118,7 +231,8 @@ public sealed class SecsPrimaryMessageListenerService : BackgroundService
             // 确保资源释放，避免后台重启或进程退出时连接泄漏。
             if (_connector is not null)
             {
-                await _connector.DisposeAsync();
+                // 异步调用说明：停止 HSMS 连接并释放其网络资源。
+                await _connector.DisposeAsync().ConfigureAwait(false);
             }
 
             if (_secsGem is not null)
@@ -129,6 +243,7 @@ public sealed class SecsPrimaryMessageListenerService : BackgroundService
             _secsGem?.Dispose();
             _connector = null;
             _secsGem = null;
+            ConnectionStatusChanged?.Invoke("Stopped");
         }
     }
 
@@ -221,14 +336,28 @@ public sealed class SecsPrimaryMessageListenerService : BackgroundService
     private sealed class SecsGemLoggerAdapter : ISecsGemLogger
     {
         private readonly ILogger _logger;
+        private readonly Action<string> _onSml;
 
-        public SecsGemLoggerAdapter(ILogger logger)
+        /// <summary>同时向现有日志与测试窗体提供 SECS 收发内容。</summary>
+        public SecsGemLoggerAdapter(ILogger logger, Action<string> onSml)
         {
             _logger = logger;
+            _onSml = onSml;
         }
 
-        public void MessageIn(SecsMessage msg, int id) => _logger.LogDebug("<-- [0x{Id:X8}] {Message}", id, msg);
-        public void MessageOut(SecsMessage msg, int id) => _logger.LogDebug("--> [0x{Id:X8}] {Message}", id, msg);
+        /// <summary>记录入站消息并向窗体发送 SML 文本。</summary>
+        public void MessageIn(SecsMessage msg, int id)
+        {
+            _logger.LogDebug("<-- [0x{Id:X8}] {Message}", id, msg);
+            _onSml($"<-- [0x{id:X8}] {msg.ToSml()}");
+        }
+
+        /// <summary>记录出站消息并向窗体发送 SML 文本。</summary>
+        public void MessageOut(SecsMessage msg, int id)
+        {
+            _logger.LogDebug("--> [0x{Id:X8}] {Message}", id, msg);
+            _onSml($"--> [0x{id:X8}] {msg.ToSml()}");
+        }
         public void Debug(string msg) => _logger.LogDebug("{Message}", msg);
         public void Info(string msg) => _logger.LogInformation("{Message}", msg);
         public void Warning(string msg) => _logger.LogWarning("{Message}", msg);

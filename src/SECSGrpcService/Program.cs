@@ -2,9 +2,12 @@ using GY.PLC.Comm;
 using Microsoft.EntityFrameworkCore;
 using Nacos.AspNetCore.V2;
 using SECSGrpcService.Services;
+using SECSGrpcService.Views;
 using SECShandler.Handlers;
 using SECShandler.Interfaces;
 using System.Net;
+using System.Threading;
+using System.Windows.Forms;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -164,7 +167,8 @@ builder.Services.AddSingleton(sp =>
     .AddSingleton<IPrimaryMessageHandler, AlarmPrimaryMessageHandler>()
     .AddSingleton<IPrimaryMessageHandler, TimeSyncPrimaryMessageHandler>()
     .AddSingleton<IPrimaryMessageHandler, RecipePrimaryMessageHandler>()
-    .AddHostedService<SecsPrimaryMessageListenerService>()
+    .AddSingleton<SecsPrimaryMessageListenerService>()
+    .AddHostedService(sp => sp.GetRequiredService<SecsPrimaryMessageListenerService>())
     .AddHostedService<S6F11SpoolReplayService>();
 //builder.Services.AddHostedService<DeviceStatusRefreshService>();
 
@@ -185,4 +189,26 @@ Console.WriteLine("可测试入口: GY.EFEM.ReportGrpcService/ResultReport");
 Console.WriteLine("可测试入口: GY.EFEM.ReportGrpcService/ReportAlarm");
 Console.WriteLine("如需持续监听SECS PrimaryMessage，请在配置中设置 SecsListener:Enabled=true");
 
-app.Run();
+// if 关键分支：只有交互式 Windows 进程显示测试窗体；服务/无人值守模式沿用原有启动方式。
+if (Environment.UserInteractive)
+{
+    // 异步调用说明：先启动 gRPC 宿主及后台监听，再显示共享监听器的测试窗体。
+    await app.StartAsync();
+    var uiThread = new Thread(() =>
+    {
+        ApplicationConfiguration.Initialize();
+        using var form = new SecsForm(app.Services.GetRequiredService<SecsPrimaryMessageListenerService>(), app.Configuration);
+        Application.Run(form);
+        app.Lifetime.StopApplication();
+    });
+    uiThread.SetApartmentState(ApartmentState.STA);
+    uiThread.IsBackground = true;
+    uiThread.Start();
+    // 异步调用说明：窗体关闭或外部停止宿主时完成后台服务的优雅关闭。
+    await app.WaitForShutdownAsync();
+}
+else
+{
+    // 异步调用说明：非交互式部署不创建窗口，继续运行原有 gRPC/SECS 服务。
+    await app.RunAsync();
+}
