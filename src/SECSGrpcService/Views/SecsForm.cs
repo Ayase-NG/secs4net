@@ -12,6 +12,7 @@ public sealed partial class SecsForm : Form
 {
     private readonly SecsPrimaryMessageListenerService _listener = null!;
     private readonly IConfiguration _configuration = null!;
+    private readonly GrpcUiLogProvider _grpcUiLogProvider = null!;
 
     /// <summary>供 WinForms 设计器创建窗体；实际运行使用带服务参数的构造函数。</summary>
     public SecsForm()
@@ -41,10 +42,11 @@ public sealed partial class SecsForm : Form
     }
 
     /// <summary>创建测试窗体并从现有 SecsListener 配置加载初始连接参数。</summary>
-    public SecsForm(SecsPrimaryMessageListenerService listener, IConfiguration configuration) : this()
+    public SecsForm(SecsPrimaryMessageListenerService listener, IConfiguration configuration, GrpcUiLogProvider grpcUiLogProvider) : this()
     {
         _listener = listener;
         _configuration = configuration;
+        _grpcUiLogProvider = grpcUiLogProvider;
 
         var options = SecsPrimaryMessageListenerService.CreateOptions(configuration.GetSection("SecsListener"));
         _address.Text = options.IpAddress;
@@ -58,6 +60,7 @@ public sealed partial class SecsForm : Form
 
         _listener.ConnectionStatusChanged += OnStatusChanged;
         _listener.SmlLogged += OnSmlLogged;
+        _grpcUiLogProvider.Logged += AppendGrpcLog;
         _start.Click += StartClick;
         _stop.Click += StopClick;
         FormClosed += OnFormClosed;
@@ -136,6 +139,27 @@ public sealed partial class SecsForm : Form
         });
     }
 
+    /// <summary>将 gRPC 桥接日志追加到右侧窗口，并安全地切换到窗体线程。</summary>
+    public void AppendGrpcLog(string line)
+    {
+        // if 关键分支：没有日志文本时不更新控件。
+        if (string.IsNullOrEmpty(line))
+        {
+            return;
+        }
+
+        PostToUi(() =>
+        {
+            // if 关键分支：限制右侧日志长度，避免长时间测试持续占用内存。
+            if (_grpcLog.TextLength > 200_000)
+            {
+                _grpcLog.Clear();
+            }
+
+            _grpcLog.AppendText($"{line}{Environment.NewLine}");
+        });
+    }
+
     /// <summary>跨线程调度 UI 更新，窗体关闭后不再访问控件。</summary>
     private void PostToUi(Action update)
     {
@@ -146,7 +170,15 @@ public sealed partial class SecsForm : Form
         }
         try
         {
-            BeginInvoke(update);
+            // 异步调用说明：把日志更新投递给 UI 线程，执行前再次检查窗体是否已关闭。
+            BeginInvoke((Action)(() =>
+            {
+                // if 关键分支：窗体关闭后丢弃已排队的日志更新。
+                if (!IsDisposed && !Disposing)
+                {
+                    update();
+                }
+            }));
         }
         catch (InvalidOperationException)
         {
@@ -171,5 +203,6 @@ public sealed partial class SecsForm : Form
     {
         _listener.ConnectionStatusChanged -= OnStatusChanged;
         _listener.SmlLogged -= OnSmlLogged;
+        _grpcUiLogProvider.Logged -= AppendGrpcLog;
     }
 }

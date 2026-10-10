@@ -18,6 +18,12 @@ builder.Configuration.AddJsonFile("secsgrpcsettings.json", optional: true, reloa
 var logDirectory = builder.Configuration.GetValue<string>("Log:Directory")
     ?? Path.Combine(AppContext.BaseDirectory, "logs");
 builder.Logging.AddProvider(new DateFileLoggerProvider(logDirectory));
+var grpcUiLogProvider = new GrpcUiLogProvider();
+// 仅交互式运行时转发 gRPC 日志到窗体；文件日志始终保留。
+if (Environment.UserInteractive)
+{
+    builder.Logging.AddProvider(grpcUiLogProvider);
+}
 
 // 从配置中获取端口和绑定地址
 var grpcSection = builder.Configuration.GetSection("Grpc");
@@ -197,7 +203,7 @@ if (Environment.UserInteractive)
     var uiThread = new Thread(() =>
     {
         ApplicationConfiguration.Initialize();
-        using var form = new SecsForm(app.Services.GetRequiredService<SecsPrimaryMessageListenerService>(), app.Configuration);
+        using var form = new SecsForm(app.Services.GetRequiredService<SecsPrimaryMessageListenerService>(), app.Configuration, grpcUiLogProvider);
         Application.Run(form);
         app.Lifetime.StopApplication();
     });
