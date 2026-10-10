@@ -19,4 +19,14 @@ internal sealed class NoopMeasurementDispatcher : ICommandDispatcher
     public Task DispatchLoadCassetteAsync(S3F17_data data, CancellationToken cancellationToken) => Task.CompletedTask;
 
     public Task DispatchUnLoadCassetteAsync(S3F17_data data, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task DispatchStartMeasurementAsync(S2F49_data data, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task DispatchStopMeasurementAsync(S2F49_data data, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task DispatchPauseMeasurementAsync(S2F49_data data, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task DispatchResumeMeasurementAsync(S2F49_data data, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task DispatchProcessProgramSelectAsync(S2F49_data data, CancellationToken cancellationToken) => Task.CompletedTask;
 }

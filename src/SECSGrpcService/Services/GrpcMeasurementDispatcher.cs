@@ -171,6 +171,20 @@ public sealed class GrpcCommandDispatcher : ICommandDispatcher
         return message;
     }
 
+    private static WaferMessage ToWaferMessage(S2F49_data data)
+    {
+        var message = new WaferMessage
+        {
+            WaferId = ReadStringParameter(data.Parameters, "WAFERID") ?? string.Empty,
+            LotId = ReadStringParameter(data.Parameters, "LOTID") ?? string.Empty,
+            Status = ReadStringParameter(data.Parameters, "STATUS") ?? string.Empty,
+            PPID = ReadStringParameter(data.Parameters, "PPID") ?? string.Empty,
+            SlotId = ReadStringParameter(data.Parameters, "SLOTID") ?? string.Empty,
+            Result = ReadStringParameter(data.Parameters, "RESULT") ?? string.Empty
+        };
+        return message;
+    }
+
     private static string? ReadStringParameter(Dictionary<string, Item>? parameters, params string[] candidateNames)
     {
         if (parameters is null || parameters.Count == 0)
@@ -327,5 +341,123 @@ public sealed class GrpcCommandDispatcher : ICommandDispatcher
             PortCmd = (int)Port.Unload,
         };
         await _secsEfemGrpc.SendTakeLoadPortToServiceAsync(targetServiceName, targetGroup, targetClusters, targetUseHttps, portInfo, fallbackAddresses, cancellationToken);
+    }
+
+    public async Task DispatchStartMeasurementAsync(S2F49_data data, CancellationToken cancellationToken)
+    {
+        var (targetServiceName, targetGroup, targetClusters, targetUseHttps, fallbackAddresses) = GetTargetOptions();
+
+        _logger.LogInformation("S2F49 START -> StartMeasurement trigger. (ignore START params)");
+
+        await _secsEfemGrpc.SendStartMeasurementToServiceAsync(
+            targetServiceName,
+            targetGroup,
+            targetClusters,
+            targetUseHttps,
+            fallbackAddresses,
+            cancellationToken);
+    }
+
+    public async Task DispatchStopMeasurementAsync(S2F49_data data, CancellationToken cancellationToken)
+    {
+        var (targetServiceName, targetGroup, targetClusters, targetUseHttps, fallbackAddresses) = GetTargetOptions();
+        var wafer = ToWaferMessage(data);
+
+        _logger.LogInformation("S2F49 STOP -> StopMeasurement payload. LotId={LotId}, SlotId={SlotId}", wafer.LotId, wafer.SlotId);
+
+        await _secsEfemGrpc.SendStopMeasurementToServiceAsync(targetServiceName, targetGroup, targetClusters, targetUseHttps, wafer, fallbackAddresses, cancellationToken);
+
+    }
+
+    public async Task DispatchPauseMeasurementAsync(S2F49_data data, CancellationToken cancellationToken)
+    {
+        var (targetServiceName, targetGroup, targetClusters, targetUseHttps, fallbackAddresses) = GetTargetOptions();
+        var wafer = ToWaferMessage(data);
+
+        _logger.LogInformation("S2F49 PAUSE -> PauseMeasurement payload. WaferId={WaferId}, SlotId={SlotId}, LotId={LotId}", wafer.WaferId, wafer.SlotId, wafer.LotId);
+
+        await _secsEfemGrpc.SendPauseMeasurementToServiceAsync(targetServiceName, targetGroup, targetClusters, targetUseHttps, wafer, fallbackAddresses, cancellationToken);
+
+    }
+
+    public async Task DispatchResumeMeasurementAsync(S2F49_data data, CancellationToken cancellationToken)
+    {
+        var (targetServiceName, targetGroup, targetClusters, targetUseHttps, fallbackAddresses) = GetTargetOptions();
+        var wafer = ToWaferMessage(data);
+
+        _logger.LogInformation("S2F49 RESUME -> ResumeMeasurement payload. WaferId={WaferId}, SlotId={SlotId}, LotId={LotId}", wafer.WaferId, wafer.SlotId, wafer.LotId);
+
+        await _secsEfemGrpc.SendResumeMeasurementToServiceAsync(targetServiceName, targetGroup, targetClusters, targetUseHttps, wafer, fallbackAddresses, cancellationToken);
+
+    }
+
+    public async Task DispatchProcessProgramSelectAsync(S2F49_data data, CancellationToken cancellationToken)
+    {
+        var (targetServiceName, targetGroup, targetClusters, targetUseHttps, fallbackAddresses) = GetTargetOptions();
+        var wafer = ToWaferMessage(data);
+
+        // PPSELECT 必须携带 PORTID，作为多 LoadPort 场景的唯一上下文锚点。
+        var portIdFromCommand = ReadStringParameter(data.Parameters, "PORTID", "PORT", "LOADPORT")?.Trim();
+        if (string.IsNullOrWhiteSpace(portIdFromCommand))
+        {
+            throw new InvalidOperationException("PPSELECT rejected: missing required parameter PORTID.");
+        }
+
+        // PPSELECT 的 LOTID 优先取命令参数；缺失时允许从 ReportRFID 已写入的 Port 上下文兜底。
+        var lotIdFromCommand = (wafer.LotId ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(lotIdFromCommand)
+            && _portContextStorage.TryGetByPortId(portIdFromCommand, out var byPortContext)
+            && !string.IsNullOrWhiteSpace(byPortContext.LotId))
+        {
+            lotIdFromCommand = byPortContext.LotId.Trim();
+        }
+
+        // 优先读取 S2F41 中的 MODE 参数（VID=2001 对应语义），
+        // 在 PPSELECT 阶段提前下发到设备端作为运行前准备。
+        var modeFromCommand = ReadStringParameter(data.Parameters, "MODE");
+        if (!string.IsNullOrWhiteSpace(modeFromCommand))
+        {
+            _device.Mode = modeFromCommand.Trim();
+        }
+
+        var slots = ReadSlotsParameter(data.Parameters).ToList();
+        _device.SlotsList = slots;
+
+        // PPSELECT 接收后同步刷新 Port 上下文中的 LOTID，供后续 Carrier 事件与调度链路复用。
+        if (_portContextStorage.TryGetByPortId(portIdFromCommand, out var existingContext))
+        {
+            _portContextStorage.Upsert(new PortRuntimeContext
+            {
+                PortId = portIdFromCommand,
+                LotId = lotIdFromCommand,
+                CarrierId = existingContext.CarrierId,
+                SlotsList = slots.Count > 0 ? string.Join(',', slots) : existingContext.SlotsList
+            });
+        }
+        else
+        {
+            _portContextStorage.Upsert(new PortRuntimeContext
+            {
+                PortId = portIdFromCommand,
+                LotId = lotIdFromCommand,
+                CarrierId = string.Empty,
+                SlotsList = slots.Count > 0 ? string.Join(',', slots) : string.Empty
+            });
+        }
+
+        var recipe = new RecipeMessage
+        {
+            PPID = wafer.PPID,
+            Mode = _device.Mode,
+            LotId = lotIdFromCommand,
+            PortId = portIdFromCommand
+        };
+        recipe.SlotsList.Add(_device.SlotsList);
+
+        var slotsText = recipe.SlotsList.Count > 0 ? string.Join(',', recipe.SlotsList) : "<empty>";
+        _logger.LogInformation("S2F41 PPSELECT -> ProcessProgramSelect payload. PPID={PPID}, Mode={Mode}, PortId={PortId}, LotId={LotId}, SlotsList={Slots}", recipe.PPID, recipe.Mode, recipe.PortId, recipe.LotId, slotsText);
+
+        await _secsEfemGrpc.SendProcessProgramSelectToServiceAsync(targetServiceName, targetGroup, targetClusters, targetUseHttps, recipe, fallbackAddresses, cancellationToken);
+
     }
 }

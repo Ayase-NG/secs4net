@@ -459,10 +459,11 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
         // switch 关键分支：空格式沿用 I8；溢出或不匹配时拒绝而不是截断数值。
         return format.Trim().ToUpperInvariant() switch
         {
-            "" or "I8" => Item.I8(value),
+            "" => Item.I4((int)value),
             "I1" when value is >= sbyte.MinValue and <= sbyte.MaxValue => Item.I1((sbyte)value),
             "I2" when value is >= short.MinValue and <= short.MaxValue => Item.I2((short)value),
             "I4" when value is >= int.MinValue and <= int.MaxValue => Item.I4((int)value),
+            //"I8" when value is >= long.MinValue and <= long.MaxValue => Item.I8((long)value),//暂不使用
             _ => throw new InvalidOperationException($"Invalid signed integer format or value: {format}")
         };
     }
@@ -473,10 +474,11 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
         // switch 关键分支：空格式沿用 U8；溢出或不匹配时拒绝而不是截断数值。
         return format.Trim().ToUpperInvariant() switch
         {
-            "" or "U8" => Item.U8(value),
+            "" => Item.U4((uint)value),
             "U1" when value <= byte.MaxValue => Item.U1((byte)value),
             "U2" when value <= ushort.MaxValue => Item.U2((ushort)value),
             "U4" when value <= uint.MaxValue => Item.U4((uint)value),
+            //"U8" when value <= ulong.MaxValue => Item.U8((ulong)value),//暂不使用
             _ => throw new InvalidOperationException($"Invalid unsigned integer format or value: {format}")
         };
     }

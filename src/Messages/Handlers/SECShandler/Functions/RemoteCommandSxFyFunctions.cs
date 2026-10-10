@@ -93,6 +93,16 @@ namespace SECShandler.Functions
             }
         }
 
+        /// <summary>
+        /// 先搭建S2F49链路，目前实际效果与S2F41一致，后续如有需要，补充参数。
+        /// </summary>
+        /// <param name="primary"></param>
+        /// <param name="device"></param>
+        /// <param name="commandDispatcher"></param>
+        /// <param name="interactionHistoryStore"></param>
+        /// <param name="idempotencyGuard"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
         public static async Task HandleS2F49Async(
             PrimaryMessageWrapper primary,
             IDevice device,
@@ -106,11 +116,35 @@ namespace SECShandler.Functions
             try
             {
                 data = S2F49_parser.Parse(primaryMsg);
+                switch (data.RCMD)
+                {
+                    case "START":
+                        await commandDispatcher.DispatchStartMeasurementAsync(data, cancellationToken);
+                        break;
+                    case "STOP":
+                        await commandDispatcher.DispatchStopMeasurementAsync(data, cancellationToken);
+                        break;
+                    case "PAUSE":
+                        await commandDispatcher.DispatchPauseMeasurementAsync(data, cancellationToken);
+                        break;
+                    case "RESUME":
+                        await commandDispatcher.DispatchResumeMeasurementAsync(data, cancellationToken);
+                        break;
+                    case "PPSELECT":
+                        await commandDispatcher.DispatchProcessProgramSelectAsync(data, cancellationToken);
+                        break;
+                    default:
+                        // 不支持的 RCMD 返回 HCACK=1 + RCMD 参数ACK。
+                        await TryReplyS2F50Async(primary, hcack: 1, interactionHistoryStore, cancellationToken, data.RCMD, errorParam: "RCMD");
+                        return;
+                }
+
+                await TryReplyS2F50Async(primary, hcack: 0, interactionHistoryStore, cancellationToken, data.RCMD);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"S2F49 parse error: {ex.Message}");
-                await TryReplyS2F42Async(primary, hcack: 2, interactionHistoryStore, cancellationToken, rcmd: null, errorParam: "Parse");
+                await TryReplyS2F50Async(primary, hcack: 2, interactionHistoryStore, cancellationToken, rcmd: null, errorParam: "Parse");
                 return;
             }
 
@@ -391,6 +425,37 @@ namespace SECShandler.Functions
 
             var sxFy = $"S{s2f42.S}F{s2f42.F}";
             var secsMessage = s2f42.ToString();
+            await interactionHistoryStore.SaveInteractionAsync(sxFy, secsMessage, hcack, DateTime.UtcNow, cancellationToken);
+        }
+
+        /// <summary>
+        /// 回复 S2F50（Remote Command Acknowledge）并记录数据库追溯日志。
+        /// HCACK 约定：0=成功，1=命令不支持/参数问题，2=执行失败。
+        /// </summary>
+        private static async Task TryReplyS2F50Async(
+            PrimaryMessageWrapper primaryMessage,
+            byte hcack,
+            ISecsInteractionHistoryStore interactionHistoryStore,
+            CancellationToken cancellationToken,
+            string? rcmd = null,
+            string? errorParam = null)
+        {
+            if (!primaryMessage.PrimaryMessage.ReplyExpected)
+                return;
+
+            // 统一错误参数确认码映射，减少 Host 侧歧义。
+            var parameterAcks = new Dictionary<string, byte>();
+            if (!string.IsNullOrWhiteSpace(errorParam))
+            {
+                parameterAcks[errorParam] = MapCpAck(errorParam);
+            }
+
+            var s2f50 = S2F50_builder.Build(hcack, parameterAcks.Count == 0 ? null : parameterAcks);
+
+            await primaryMessage.TryReplyAsync(s2f50, cancellationToken);
+
+            var sxFy = $"S{s2f50.S}F{s2f50.F}";
+            var secsMessage = s2f50.ToString();
             await interactionHistoryStore.SaveInteractionAsync(sxFy, secsMessage, hcack, DateTime.UtcNow, cancellationToken);
         }
 
