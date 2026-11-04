@@ -102,7 +102,6 @@ public sealed class GrpcCommandDispatcher : ICommandDispatcher
         }
 
         var slots = ReadSlotsParameter(data.Parameters).ToList();
-        _device.SlotsList = slots;
 
         // PPSELECT 接收后同步刷新 Port 上下文中的 LOTID，供后续 Carrier 事件与调度链路复用。
         if (_portContextStorage.TryGetByPortId(portIdFromCommand, out var existingContext))
@@ -133,7 +132,7 @@ public sealed class GrpcCommandDispatcher : ICommandDispatcher
             LotId = lotIdFromCommand,
             PortId = portIdFromCommand
         };
-        recipe.SlotsList.Add(_device.SlotsList);
+        recipe.SlotsList.Add(slots);
 
         var slotsText = recipe.SlotsList.Count > 0 ? string.Join(',', recipe.SlotsList) : "<empty>";
         _logger.LogInformation("S2F41 PPSELECT -> ProcessProgramSelect payload. PPID={PPID}, Mode={Mode}, PortId={PortId}, LotId={LotId}, SlotsList={Slots}", recipe.PPID, recipe.Mode, recipe.PortId, recipe.LotId, slotsText);
@@ -421,7 +420,6 @@ public sealed class GrpcCommandDispatcher : ICommandDispatcher
         }
 
         var slots = ReadSlotsParameter(data.Parameters).ToList();
-        _device.SlotsList = slots;
 
         // PPSELECT 接收后同步刷新 Port 上下文中的 LOTID，供后续 Carrier 事件与调度链路复用。
         if (_portContextStorage.TryGetByPortId(portIdFromCommand, out var existingContext))
@@ -452,7 +450,7 @@ public sealed class GrpcCommandDispatcher : ICommandDispatcher
             LotId = lotIdFromCommand,
             PortId = portIdFromCommand
         };
-        recipe.SlotsList.Add(_device.SlotsList);
+        recipe.SlotsList.Add(slots);
 
         var slotsText = recipe.SlotsList.Count > 0 ? string.Join(',', recipe.SlotsList) : "<empty>";
         _logger.LogInformation("S2F41 PPSELECT -> ProcessProgramSelect payload. PPID={PPID}, Mode={Mode}, PortId={PortId}, LotId={LotId}, SlotsList={Slots}", recipe.PPID, recipe.Mode, recipe.PortId, recipe.LotId, slotsText);

@@ -652,10 +652,10 @@ namespace SECShandler.Functions
             var context = new SvidResolveContext(device, plcClient, vidValueStorage);
             var providers = new ISvidValueProvider[]
             {
-                new DeviceSvidValueProvider(),
-                new PlcSvidValueProvider(),
-                new RuntimeVidSvidValueProvider(),
-                new WorkflowSvidValueProvider()
+                new DeviceSvidValueProvider(),// 在线device
+                //new PlcSvidValueProvider(),// 通过PLC读取
+                new RuntimeVidSvidValueProvider(),// 运行时VID/SVID键值表
+                //new WorkflowSvidValueProvider()// 工作流SVID
             };
 
             // 按 provider 分组批量读取并合并结果。
@@ -856,11 +856,7 @@ namespace SECShandler.Functions
                 foreach (var (svid, row) in rows)
                 {
                     // RECIPEID 返回 device.RECIPEID。
-                    if (string.Equals(row.Name, "RECIPEID", StringComparison.OrdinalIgnoreCase))
-                    {
-                        result[svid] = context.Device.RECIPEID ?? string.Empty;
-                    }
-                    else if (string.Equals(row.Name, "ONLINE_STATE", StringComparison.OrdinalIgnoreCase)
+                    if (string.Equals(row.Name, "ONLINE_STATE", StringComparison.OrdinalIgnoreCase)
                         || string.Equals(row.Name, "ISONLINE", StringComparison.OrdinalIgnoreCase))
                     {
                         result[svid] = context.Device.IsOnline.ToString();

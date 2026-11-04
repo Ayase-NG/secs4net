@@ -470,15 +470,10 @@ public sealed class SecsHandlerRuntimeState : IDevice, IReportStorage, IEventLin
             }
         }
     }
-    public string Mode { get; set; } = "01";
-    public List<uint> SlotsList { get; set; } = new();
+    public string Mode { get; set; } = "Auto";
     public DeviceRunStatus RunStatus { get; set; } = DeviceRunStatus.Unknown;
-    public string RECIPEID { get; set; } = string.Empty;
-    public string CurrentLotId { get; set; } = string.Empty;
-    public string ModelNumber { get; set; } = "GWM-V 1.0.0-202609";
-    public string SoftwareRevision { get; set; } = "SECS-1.0.0";
-    public string Status { get; set; } = string.Empty;
-
+    public string ModelNumber { get; set; } = "GWM-300-CW";
+    public string SoftwareRevision { get; set; } = "Alpha-1.0.0";
     public Task StartProcessAsync(string? lotId) => Task.CompletedTask;
 
     // ===== IReportStorage =====
