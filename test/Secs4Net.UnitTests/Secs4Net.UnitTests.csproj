@@ -42,6 +42,7 @@
 		<Compile Include="..\..\common\ItemAssertions.cs" Link="common\ItemAssertions.cs" />
 		<Compile Include="..\..\common\Usings.cs" Link="common\Usings.cs" />
 		<Compile Include="..\..\common\RuntimeHelpers.cs" Link="common\RuntimeHelpers.cs" />
+        <Compile Include="..\..\src\SECSGrpcService\Services\InMemoryIdempotencyGuard.cs" Link="Services\InMemoryIdempotencyGuard.cs" />
 	</ItemGroup>
 
 	<ItemGroup>

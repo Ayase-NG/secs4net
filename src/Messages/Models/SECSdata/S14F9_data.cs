@@ -4,13 +4,13 @@ using System.Collections.Generic;
 namespace SECSdata
 {
     /// <summary>
-    /// S14F9 "Create Control Job" 请求数据模型。
-    /// 常见结构：L[n]，前两项通常为对象域与对象类型，第 3 项为控制作业对象列表。
+    /// S14F9 Create Object 请求的 ControlJob 最小数据模型。
+    /// 结构为 L[3] { OBJSPEC, OBJTYPE, L[n] { L[2] { ATTRID, ATTRDATA } } }。
     /// </summary>
     public class S14F9_data
     {
         /// <summary>
-        /// 对象域（常见值如 Equipment）。
+        /// 对象规范（OBJSPEC），标识创建对象的作用范围。
         /// </summary>
         public string OBJSPEC { get; set; } = string.Empty;
 
@@ -20,7 +20,7 @@ namespace SECSdata
         public string OBJTYPE { get; set; } = string.Empty;
 
         /// <summary>
-        /// Control Job 列表（最小骨架仅抽取关键字段）。
+        /// 为兼容现有处理层保留的集合；单条 Create Object 请求解析为一个对象。
         /// </summary>
         public List<S14F9_control_job_data> ControlJobs { get; set; } = new();
 

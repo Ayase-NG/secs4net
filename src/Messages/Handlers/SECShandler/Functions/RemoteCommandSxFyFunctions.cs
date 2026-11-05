@@ -155,6 +155,7 @@ namespace SECShandler.Functions
         /// <summary>
         /// 处理 S16F15 请求并回复 S16F16（增强最小实现）。
         /// ACK 约定：0=接受，1=拒绝。
+        /// 拒绝时在回包前释放本次占用的去重记录，成功时保留短期防重。
         /// </summary>
         public static async Task HandleS16F15Async(
             SecsGem secsGem,
@@ -167,6 +168,8 @@ namespace SECShandler.Functions
             CancellationToken cancellationToken)
         {
             var ack = (byte)1;
+            string? pjKey = null;
+            var ownershipToken = Guid.Empty;
 
             try
             {
@@ -174,8 +177,8 @@ namespace SECShandler.Functions
                 var request = S16F15_parser.Parse(primary.PrimaryMessage);
 
                 // S16F15 最小幂等保护，按 DATAID + PJID 集合防重。
-                var pjKey = BuildS16F15IdempotencyKey(request);
-                if (!idempotencyGuard.TryBegin("S16F15", pjKey, TimeSpan.FromSeconds(30)))
+                pjKey = BuildS16F15IdempotencyKey(request);
+                if (!idempotencyGuard.TryBegin("S16F15", pjKey, TimeSpan.FromSeconds(30), out ownershipToken))
                 {
                     ack = 0;
                     var duplicatedReply = S16F16_builder.Build(ack);
@@ -228,7 +231,11 @@ namespace SECShandler.Functions
                 // 解析失败时保持拒绝 ACK。
                 ack = 1;
             }
-
+            // 失败释放只针对本次取得的令牌；不能删除重复请求或过期后新请求的记录。
+            if (ack != 0 && pjKey is not null && ownershipToken != Guid.Empty)
+            {
+                idempotencyGuard.TryRemove("S16F15", pjKey, ownershipToken);
+            }
             var reply = S16F16_builder.Build(ack);
             try
             {
@@ -245,6 +252,7 @@ namespace SECShandler.Functions
         /// <summary>
         /// 处理 S14F9 请求并回复 S14F10（增强最小实现）。
         /// ACK 约定：0=接受，1=拒绝。
+        /// 拒绝时在回包前释放本次占用的去重记录，不因成功应答发送失败而释放。
         /// </summary>
         public static async Task HandleS14F9Async(
             SecsGem secsGem,
@@ -256,6 +264,8 @@ namespace SECShandler.Functions
             CancellationToken cancellationToken)
         {
             var ack = (byte)1;
+            string? cjKey = null;
+            var ownershipToken = Guid.Empty;
 
             try
             {
@@ -263,8 +273,8 @@ namespace SECShandler.Functions
                 var request = S14F9_parser.Parse(primary.PrimaryMessage);
 
                 // S14F9 最小幂等保护，按 ObjectDomain/ObjectType + ObjID 集合防重。
-                var cjKey = BuildS14F9IdempotencyKey(request);
-                if (!idempotencyGuard.TryBegin("S14F9", cjKey, TimeSpan.FromSeconds(30)))
+                cjKey = BuildS14F9IdempotencyKey(request);
+                if (!idempotencyGuard.TryBegin("S14F9", cjKey, TimeSpan.FromSeconds(30), out ownershipToken))
                 {
                     ack = 0;
                     var duplicatedReply = S14F10_builder.Build(ack);
@@ -382,6 +392,12 @@ namespace SECShandler.Functions
             {
                 // 解析失败时保持拒绝 ACK。
                 ack = 1;
+            }
+
+            // 在构建和发送拒绝应答前释放本次记录，让后续请求可以重新尝试。
+            if (ack != 0 && cjKey is not null && ownershipToken != Guid.Empty)
+            {
+                idempotencyGuard.TryRemove("S14F9", cjKey, ownershipToken);
             }
 
             var reply = S14F10_builder.Build(ack);
