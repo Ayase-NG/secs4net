@@ -32,8 +32,12 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
     private readonly ICommandDispatcher _measurementDispatcher;
     private readonly IReportStorage _reportStorage;
     private readonly IVidValueStorage _vidValueStorage;
+    private readonly ITypedVidValueStorage _typedVidValueStorage;
     private readonly Nacos.V2.INacosNamingService _nacos;
 
+    /// <summary>
+    /// 初始化上报服务及独立的类型化 VID 缓存，保留原字符串 VID 存储依赖。
+    /// </summary>
     public ReportGrpc(
         ILogger<ReportGrpc> logger,
         SecsGemContext secsGemContext,
@@ -51,7 +55,8 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
         ICommandDispatcher measurementDispatcher,
         IReportStorage reportStorage,
         IVidValueStorage vidValueStorage,
-        INacosNamingService nacos)
+        INacosNamingService nacos,
+        ITypedVidValueStorage typedVidValueStorage)
     {
         _logger = logger;
         _secsGemContext = secsGemContext;
@@ -70,10 +75,12 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
         _reportStorage = reportStorage;
         _vidValueStorage = vidValueStorage;
         _nacos = nacos;
+        _typedVidValueStorage = typedVidValueStorage;
     }
 
     /// <summary>
     /// 通用事件上报：EFEM 传 EventName + 参数，本项目通过 CEID.csv 映射到 CEID 并发送 S6F11。
+    /// 类型化参数转换成功后旁路缓存，不改变原字符串 VID 存储及本次上报的取值方式。
     /// </summary>
     public override async Task<ReportReply> ReportEvent(GenericEventReportRequest request, ServerCallContext context)
     {
@@ -131,6 +138,12 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
             {
                 return new ReportReply { Success = false, Code = 4, Message = $"参数 {kv.Key} 类型无效: {ex.Message}" };
             }
+        }
+
+        // 全部参数转换成功后再更新独立缓存，不将类型化值写入原字符串存储。
+        foreach (var (vid, value) in typedValues)
+        {
+            _typedVidValueStorage.UpsertByVid(vid, value);
         }
 
         // 最小实现取首个绑定 RPTID 作为通用事件上报 RPTID。后续改为遍历RPTID列表，按 Host 配置的上报项组合发送多条 S6F11。

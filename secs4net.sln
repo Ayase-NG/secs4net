@@ -61,7 +61,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Config", "Config", "{E1D4DF
 	ProjectSection(SolutionItems) = preProject
 		src\Messages\Config\AlarmCode.csv = src\Messages\Config\AlarmCode.csv
 		src\Messages\Config\CEID.csv = src\Messages\Config\CEID.csv
-		src\Messages\Config\CEIDS.json = src\Messages\Config\CEIDS.json
 		sql.txt = sql.txt
 		src\Messages\Config\VID.csv = src\Messages\Config\VID.csv
 	EndProjectSection

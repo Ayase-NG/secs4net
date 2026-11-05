@@ -165,6 +165,8 @@ builder.Services.AddSingleton(sp =>
     .AddSingleton<IPortContextStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>())
     .AddSingleton<IJobPlanStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>())
     .AddSingleton<IVidValueStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>())
+    // 类型化 VID 缓存独立注册，暂不替换现有字符串存储与查询链路。
+    .AddSingleton<ITypedVidValueStorage, SECShandler.Storage.TypedVidValueStorage>()
     // 处理各不同功能的SxFy
     .AddSingleton<IPrimaryMessageHandler, CommunicationPrimaryMessageHandler>()
     .AddSingleton<IPrimaryMessageHandler, EventReportPrimaryMessageHandler>()
