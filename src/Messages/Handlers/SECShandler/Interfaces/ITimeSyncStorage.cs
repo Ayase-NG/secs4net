@@ -1,7 +1,7 @@
 namespace SECShandler.Interfaces
 {
     /// <summary>
-    /// 时间同步状态存储接口（S2F31/S2F32）。
+    /// 日期时间查询及同步状态接口（S2F17/S2F18、S2F31/S2F32）。
     /// </summary>
     public interface ITimeSyncStorage
     {
