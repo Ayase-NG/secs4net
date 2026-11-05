@@ -1,5 +1,6 @@
 using SECShandler.Interfaces;
 using SECSdata;
+using System.Diagnostics;
 using System.Text.Json;
 
 namespace SECSGrpcService.Services;
@@ -21,6 +22,8 @@ public sealed class SecsHandlerRuntimeState : IDevice, IReportStorage, IEventLin
     private volatile bool _suppressSnapshotReload;
     private DateTime? _lastHostTimeUtc;
     private string _lastHostTimeRaw = string.Empty;
+    private DateTime? _equipmentTimeAnchorUtc;
+    private long _equipmentTimeAnchorTimestamp;
     private readonly List<S6F11_data> _s6f11Spool = new();
     private readonly int _s6f11SpoolMaxCount;
     private readonly Dictionary<string, PortRuntimeContext> _portContexts = new(StringComparer.OrdinalIgnoreCase);
@@ -356,15 +359,39 @@ public sealed class SecsHandlerRuntimeState : IDevice, IReportStorage, IEventLin
     }
 
     // ===== ITimeSyncStorage =====
+    /// <summary>
+    /// 原子设置设备逻辑时钟及同步记录；使用单调计时，避免后续系统校时导致跳变。
+    /// </summary>
     public void UpdateHostTime(DateTime hostTimeUtc, string rawTimeText)
     {
+        // 存储层只接受明确的 UTC，禁止隐式时区转换。
+        if (hostTimeUtc.Kind != DateTimeKind.Utc)
+            throw new ArgumentException("Host time must be UTC.", nameof(hostTimeUtc));
+        ArgumentNullException.ThrowIfNull(rawTimeText);
+
         lock (_stateLock)
         {
+            _equipmentTimeAnchorUtc = hostTimeUtc;
+            _equipmentTimeAnchorTimestamp = Stopwatch.GetTimestamp();
             _lastHostTimeUtc = hostTimeUtc;
-            _lastHostTimeRaw = rawTimeText ?? string.Empty;
+            _lastHostTimeRaw = rawTimeText;
         }
 
         PersistSnapshotNoThrow();
+    }
+
+    /// <summary>
+    /// 读取 Host 设置值加单调经过时间；重启后需重新同步，历史快照不作为时钟锚点。
+    /// </summary>
+    public DateTime GetEquipmentTimeUtc()
+    {
+        lock (_stateLock)
+        {
+            // 未收到本次进程的同步请求时，使用系统 UTC 而非快照中的历史时间。
+            return _equipmentTimeAnchorUtc is { } anchor
+                ? anchor.Add(Stopwatch.GetElapsedTime(_equipmentTimeAnchorTimestamp))
+                : DateTime.UtcNow;
+        }
     }
 
     public DateTime? GetLastHostTimeUtc()

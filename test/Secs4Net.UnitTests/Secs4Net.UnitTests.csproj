@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
 		<TargetFramework>net8.0</TargetFramework>
@@ -32,6 +32,9 @@
 	<ItemGroup>
 		<ProjectReference Include="..\..\src\HardwareControl\HardwareControl.csproj" />
 		<ProjectReference Include="..\..\src\Secs4Net\Secs4Net.csproj" />
+      <ProjectReference Include="..\..\src\Messages\Parsers\SECSparser\SECSparser.csproj" />
+		<ProjectReference Include="..\..\src\Messages\Builders\SECSbuilder\SECSbuilder.csproj" />
+		<ProjectReference Include="..\..\src\Messages\Handlers\SECShandler\SECShandler.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

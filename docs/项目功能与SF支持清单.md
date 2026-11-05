@@ -168,7 +168,7 @@
 | `S2F33` | `S2F34` | 定义/删除报告 | 已接入；支持 RPTID → VID 配置，离线拒绝 |
 | `S2F35` | `S2F36` | 绑定事件报告 | 已接入；校验 CEID、RPTID，离线拒绝 |
 | `S2F37` | `S2F38` | 启用/禁用事件 | 已接入；支持全部/指定事件，离线拒绝 |
-| `S2F41` | `S2F42` | 远程命令 | 已接入；START/STOP/PAUSE/RESUME/PPSELECT，远程在线门禁与短时防重 |
+| `S2F41` | `S2F42` | 远程命令 | 已接入:START/PPSELECT;<u>**尚未实现**</u>：STOP/PAUSE/RESUME，远程在线门禁与短时防重 |
 | `S2F49` | `S2F50` | 增强远程命令 | 部分实现；已分发上述命令，权限、防重和扩展语义未完整实现 |
 | `S3F17` | `S3F18` | 载具动作请求 | 部分实现；部分动作能分发，但最终应答仍固定 NAK=1，未知动作直接返回 |
 | `S5F3` | `S5F4` | 配置报警发送使能 | 已接入；支持指定报警或全部报警 |
@@ -225,10 +225,10 @@
 | `PauseMeasurement` | 已接入远程命令 |
 | `ResumeMeasurement` | 已接入远程命令 |
 | `RecipeSelect` | 已接入 PPSELECT |
-| `TakeLoadPort` | 已接入部分 `S3F17` 装载/卸载动作 |
-| `LoadCassette` | proto 已定义；当前装载分发实际使用 `TakeLoadPort` |
-| `ClearAlarm` | proto 已定义；当前封装未接入调用 |
-| `QueryActiveAlarms` | proto 已定义；当前封装未接入调用 |
+| `TakeLoadPort` | 已接入部分 `S3F17` 装载/卸载动作；**当前封装未接入调用** |
+| `LoadCassette` | proto 已定义；**当前装载分发实际使用 `TakeLoadPort`** |
+| `ClearAlarm` | proto 已定义；**当前封装未接入调用** |
+| `QueryActiveAlarms` | proto 已定义；**当前封装未接入调用** |
 
 ## 5. 已配置的事件范围
 

@@ -247,10 +247,14 @@ public sealed class SecsPrimaryMessageListenerService : BackgroundService
         }
     }
 
+    /// <summary>
+    /// 路由主消息，并为时间设置保存 Host 请求及设备应答的完整追溯记录。
+    /// </summary>
     private async Task DispatchPrimaryMessageAsync(SecsGem secsGem, PrimaryMessageWrapper primaryMessage, CancellationToken cancellationToken)
     {
         var msg = primaryMessage.PrimaryMessage;
 
+        // 未注册的消息只记录日志，避免误调用处理函数。
         if (!_handlerRoutes.TryGetValue((msg.S, msg.F), out var handler))
         {
             _logger.LogInformation("尚未实现的 SF: S{S}F{F}", msg.S, msg.F);
@@ -260,12 +264,35 @@ public sealed class SecsPrimaryMessageListenerService : BackgroundService
         // 设备处于 OffLine 时，仅放行通信相关消息（S1F1/S1F13/S1F15/S1F17）。
         if (msg.S == 1 && msg.F is 1 or 13 or 15 or 17)
         {
+            // 异步处理通信状态消息。
             await handler.HandleAsync(secsGem, primaryMessage, cancellationToken);
             return;
         }
 
         // 其他消息权限由各 Handler/SxFyFunction 负责，并向 Host 返回明确应答。
+        // 异步执行业务处理及协议应答。
         await handler.HandleAsync(secsGem, primaryMessage, cancellationToken);
+
+        // 时间设置完成后记录设备侧应答，区别于之前保存的 Host 侧入站记录。
+        if ((msg.S, msg.F) == (2, 31) && primaryMessage.SecondaryMessage is { } reply)
+        {
+            try
+            {
+                // 异步保存请求与 TIACK 应答，便于追溯时间设置成功或失败。
+                await _interactionHistoryStore.SaveInteractionAsync(
+                    "S2F32", $"Host request:\n{msg}\nEquipment reply:\n{reply}", null, DateTime.UtcNow, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                // 服务停止时保留取消语义，不将取消记录为数据库故障。
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // 应答已发送，追溯失败不能重复设置时间或发送第二次应答。
+                _logger.LogWarning(ex, "Failed to persist equipment time synchronization acknowledgement.");
+            }
+        }
     }
 
     /// <summary>

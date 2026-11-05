@@ -8,7 +8,7 @@ VID,Type,Name,Format,DefaultValue,Explain
 1007,SVID,LP2CarrierID,A,,
 1008,SVID,LP3CarrierID,A,,
 1009,SVID,LP4CarrierID,A,,
-1010,SVID,LP1CarAccessStatus,A,10,载具状态
+1010,SVID,LP1CarAccessStatus,A,,载具状态
 1011,SVID,LP2CarAccessStatus,A,,
 1012,SVID,LP3CarAccessStatus,A,,
 1013,SVID,LP4CarAccessStatus,A,,
@@ -23,10 +23,11 @@ VID,Type,Name,Format,DefaultValue,Explain
 1022,SVID,SurfaceSlotId,U4,,表面检测工位的晶圆槽位号
 1023,SVID,FrontSurfaceResult,U4,,正面检测结果
 1024,SVID,BackSurfaceResult,U4,,背面检测结果 
+1025,SVID,TimeStamp,A,,时间戳
 2001,ECID,SoftwareVersion,A,Alpha-1.0.0,软件版本
 2002,ECID,HardwareVersion,A,GWM-300-CW,硬件版本
 2003,ECID,MaxThroughput,U4,70,最大吞吐量
-2004,ECID,DefaultRecipeName,A,,默认Recipe名称
+2004,ECID,DefaultRecipeName,A,DefaultRecipe,默认Recipe名称
 2005,ECID,FfuSpeed,U4,,FFU风机转速
 2006,ECID,AirPressure,U4,,气压
 2007,ECID,UPS,U4,,UPS

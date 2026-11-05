@@ -23,9 +23,13 @@ namespace SECShandler.Handlers
 
         public bool CanHandle(int s, int f) => (s, f) == (2, 31);
 
+        /// <summary>
+        /// 将时间设置请求交给共享函数，并传递服务停止令牌。
+        /// </summary>
         public async Task HandleAsync(SecsGem secsGem, PrimaryMessageWrapper primaryMessage, CancellationToken cancellationToken)
         {
-            await TimeSyncSxFyFunctions.HandleS2F31ReplyAsync(primaryMessage, _timeSyncStorage).ConfigureAwait(false);
+            // 异步完成 TIME 校验、设备时间设置及 S2F32 应答。
+            await TimeSyncSxFyFunctions.HandleS2F31ReplyAsync(primaryMessage, _timeSyncStorage, cancellationToken).ConfigureAwait(false);
         }
     }
 }
