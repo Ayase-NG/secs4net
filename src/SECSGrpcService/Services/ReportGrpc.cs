@@ -112,6 +112,7 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
             };
         }
 
+        // 新版自变量字典，可存储多种数据类型
         var typedValues = new Dictionary<ushort, Item>();
         // for each 关键分支：仅转换能在 VID 映射中找到的类型化参数，保留 SECS-II 原始类型。
         foreach (var kv in request.TypedParameters)
@@ -133,25 +134,30 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
         }
 
         // 最小实现取首个绑定 RPTID 作为通用事件上报 RPTID。后续改为遍历RPTID列表，按 Host 配置的上报项组合发送多条 S6F11。
-        var rptId = linkedRptIds[0];
-        var mergedParameters = GetVidMapByRptId(rptId, request.Parameters, typedValues.Keys.ToHashSet());
-        var data = ActiveReportSxFyFunctions.BuildGenericEventReport(
-            _secsGemContext.GetNextDataId(),
-            ceid,
-            rptId,
-            mergedParameters,
-            TryGetVid,
-            vid => typedValues.TryGetValue(vid, out var value) ? value : null);
-
-        // 异步发送通用事件 S6F11，上报是否成功仍受 S2F33/S2F35/S2F37 门禁控制。
-        var sent = await _activeSxFyDispatcher.SendS6F11Async(data, context.CancellationToken).ConfigureAwait(false);
-
-        return new ReportReply
+        foreach (var rptId in linkedRptIds)
         {
-            Success = sent,
-            Code = sent ? 0 : 3,
-            Message = sent ? string.Empty : $"事件 {eventName}({ceid}) 上报失败或被门禁拦截。"
-        };
+            // 旧版自变量字典，只可存储字符串数据类型<name,value>
+            var mergedParameters = GetVidMapByRptId(rptId, request.Parameters, typedValues.Keys.ToHashSet());
+            var data = ActiveReportSxFyFunctions.BuildGenericEventReport(
+                _secsGemContext.GetNextDataId(),
+                ceid,
+                rptId,
+                mergedParameters,
+                TryGetVid,
+                vid => typedValues.TryGetValue(vid, out var value) ? value : null);
+            // 异步发送通用事件 S6F11，上报是否成功仍受 S2F33/S2F35/S2F37 门禁控制。
+            var sent = await _activeSxFyDispatcher.SendS6F11Async(data, context.CancellationToken).ConfigureAwait(false);
+            if (!sent)
+            {
+                return new ReportReply
+                {
+                    Success = false,
+                    Code = 3,
+                    Message = $"事件 {eventName}({ceid}) 上报失败或被门禁拦截。"
+                };
+            }
+        }
+        return new ReportReply { Success = true, Code = 0, Message = "OK" };
     }
 
 
@@ -426,9 +432,9 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
             }
 
             // 获取值
-            if (_vidValueStorage.TryGetByVid(vid, out var valueByVid) && !string.IsNullOrWhiteSpace(valueByVid))
+            if (_vidValueStorage.TryGetByVid(vid, out var value) && !string.IsNullOrWhiteSpace(value))
             {
-                report[cpName] = valueByVid;
+                report[cpName] = value;
                 continue;
             }
         }

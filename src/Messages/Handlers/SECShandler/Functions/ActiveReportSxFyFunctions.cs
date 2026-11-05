@@ -9,45 +9,6 @@ namespace SECShandler.Functions
     /// </summary>
     public static class ActiveReportSxFyFunctions
     {
-        /// <summary>
-        /// 构建 RFID/Mapping 场景的 S6F11 数据。
-        /// </summary>
-        /// <param name="dataId">消息 DATAID。</param>
-        /// <param name="portId">端口号。</param>
-        /// <param name="lotId">批次号。</param>
-        /// <param name="rfid">RFID。</param>
-        /// <param name="slotsText">槽位文本（例如 "1,2,3"）。</param>
-        /// <param name="tryGetVid">VID 映射函数；返回 false 时使用 0 兜底。</param>
-        /// <returns>可用于发送的 S6F11_data。</returns>
-        public static S6F11_data BuildRfidReport(
-            byte dataId,
-            string? portId,
-            string? lotId,
-            string? rfid,
-            string? slotsText,
-            Func<string, (bool Found, ushort Vid)>? tryGetVid = null)
-        {
-            // 按既有约定组装 CEID/RPTID（RFID/Mapping）。
-            return new S6F11_data
-            {
-                DATAID = dataId,
-                CEID = 1002,
-                Reports = new List<S6F11_report_data>
-                {
-                    new S6F11_report_data
-                    {
-                        RPTID = 1002,
-                        Values = new List<S6F11_parameter_data>
-                        {
-                            CreateParam("PORTID", portId, tryGetVid),
-                            CreateParam("LOTID", lotId, tryGetVid),
-                            CreateParam("RFID", rfid, tryGetVid),
-                            CreateParam("SLOTSLIST", slotsText, tryGetVid)
-                        }
-                    }
-                }
-            };
-        }
 
         /// <summary>
         /// 构建通用事件上报场景的 S6F11 数据。
