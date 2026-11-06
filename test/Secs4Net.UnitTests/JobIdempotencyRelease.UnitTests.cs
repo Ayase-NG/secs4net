@@ -28,6 +28,7 @@ public class JobIdempotencyReleaseUnitTests
     [InlineData(false, true, false)]
     public async Task Handle_ReleaseDependsOnBusinessAck(bool processJob, bool online, bool storageFails)
     {
+        using var recipes = new RecipeDirectoryFixture("RECIPE1");
         var pipe1 = new Pipe(new PipeOptions(useSynchronizationContext: false));
         var pipe2 = new Pipe(new PipeOptions(useSynchronizationContext: false));
         var hostConnection = new PipeConnection(pipe1.Reader, pipe2.Writer);
@@ -39,15 +40,19 @@ public class JobIdempotencyReleaseUnitTests
         var device = Substitute.For<IDevice>();
         device.IsOnline.Returns(online ? DeviceOnlineState.OnLineRemote : DeviceOnlineState.OffLine);
         var jobs = Substitute.For<IJobPlanStorage>();
-        jobs.TryGetProcessJob("PJ1", out Arg.Any<ProcessJobPlan>()).Returns(call =>
+        // CJ 测试需要已有 PJ；PJ 创建测试则必须模拟尚未存在的新作业。
+        if (!processJob)
         {
-            call[1] = new ProcessJobPlan
+            jobs.TryGetProcessJob("PJ1", out Arg.Any<ProcessJobPlan>()).Returns(call =>
             {
-                PJID = "PJ1",
-                Carriers = new List<ProcessJobCarrierPlan> { new() { CarrierId = "CARRIER1" } }
-            };
-            return true;
-        });
+                call[1] = new ProcessJobPlan
+                {
+                    PJID = "PJ1",
+                    Carriers = new List<ProcessJobCarrierPlan> { new() { CarrierId = "CARRIER1" } }
+                };
+                return true;
+            });
+        }
         var ports = Substitute.For<IPortContextStorage>();
         ports.GetAll().Returns(Array.Empty<PortRuntimeContext>());
         var guard = new InMemoryIdempotencyGuard();
@@ -78,7 +83,7 @@ public class JobIdempotencyReleaseUnitTests
         {
             // 异步创建 PJ 或返回拒绝，并在回包前决定是否释放去重记录。
             await RemoteCommandSxFyFunctions.HandleS16F15Async(equipment, primary, device,
-                Substitute.For<ICommandDispatcher>(), guard, ports, jobs, cts.Token);
+                Substitute.For<ICommandDispatcher>(), guard, ports, jobs, cts.Token, recipes.DirectoryPath);
         }
         else
         {
@@ -102,6 +107,7 @@ public class JobIdempotencyReleaseUnitTests
     [InlineData(false)]
     public async Task Handle_ParseFailure_DoesNotRemoveExistingEntry(bool processJob)
     {
+        using var recipes = new RecipeDirectoryFixture("RECIPE1");
         var pipe1 = new Pipe(new PipeOptions(useSynchronizationContext: false));
         var pipe2 = new Pipe(new PipeOptions(useSynchronizationContext: false));
         var hostConnection = new PipeConnection(pipe1.Reader, pipe2.Writer);
@@ -133,7 +139,7 @@ public class JobIdempotencyReleaseUnitTests
             // 异步处理无效 PJ 创建请求。
             await RemoteCommandSxFyFunctions.HandleS16F15Async(equipment, primary, Substitute.For<IDevice>(),
                 Substitute.For<ICommandDispatcher>(), guard, Substitute.For<IPortContextStorage>(),
-                Substitute.For<IJobPlanStorage>(), cts.Token);
+                Substitute.For<IJobPlanStorage>(), cts.Token, recipes.DirectoryPath);
         }
         else
         {
@@ -158,7 +164,7 @@ public class JobIdempotencyReleaseUnitTests
         return processJob
             ? new SecsMessage(16, 15)
             {
-                SecsItem = L(U4(1), L(L(A("PJ1"), A("MF"),
+                SecsItem = L(U4(1), L(L(A("PJ1"), B(13),
                     L(L(A("CARRIER1"), L(U1(1)))), L(U1(1), A("RECIPE1"), L()), Boolean(true), L())))
             }
             : new SecsMessage(14, 9)

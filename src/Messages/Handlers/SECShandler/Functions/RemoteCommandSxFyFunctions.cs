@@ -3,6 +3,7 @@ using SECSbuilder;
 using SECSdata;
 using SECShandler.Interfaces;
 using SECSparser;
+using System.IO;
 using System.Text;
 
 namespace SECShandler.Functions
@@ -155,6 +156,8 @@ namespace SECShandler.Functions
         /// <summary>
         /// 处理 S16F15 请求并回复 S16F16（增强最小实现）。
         /// ACK 约定：0=接受，1=拒绝。
+        /// 整批业务校验通过后才保存；相同 PJ 重传不覆盖执行状态，配方参数修改暂不限制。
+        /// RecipeId 必须匹配配方根目录下的一级子文件夹名，默认根目录为 D:\GY-Recipes\Recipes。
         /// 拒绝时在回包前释放本次占用的去重记录，成功时保留短期防重。
         /// </summary>
         public static async Task HandleS16F15Async(
@@ -165,7 +168,8 @@ namespace SECShandler.Functions
             IIdempotencyGuard idempotencyGuard,
             IPortContextStorage portContextStorage,
             IJobPlanStorage jobPlanStorage,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            string recipeRootPath = @"D:\GY-Recipes\Recipes")
         {
             var ack = (byte)1;
             string? pjKey = null;
@@ -173,8 +177,31 @@ namespace SECShandler.Functions
 
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 // 先解析并校验 S16F15 消息结构。
                 var request = S16F15_parser.Parse(primary.PrimaryMessage);
+
+                // 创建阶段只要求远程在线，不要求物料已到达或设备当前空闲。
+                if (device.IsOnline != DeviceOnlineState.OnLineRemote)
+                    throw new InvalidOperationException("S16F15 rejected: device must be OnLineRemote.");
+
+                var plans = ValidateS16F15Plans(request);
+                ValidateS16F15Recipes(plans, recipeRootPath);
+                var newPlans = new List<ProcessJobPlan>();
+                // 先检查整批已有 PJ 冲突，防止后面的无效 PJ 导致前面的有效 PJ 已被写入。
+                foreach (var plan in plans)
+                {
+                    if (jobPlanStorage.TryGetProcessJob(plan.PJID, out var existing))
+                    {
+                        // 相同定义视为重传，不能用新对象重置 AutoStarted 等运行信息。
+                        if (!HasSameProcessJobDefinition(existing, plan))
+                            throw new InvalidOperationException($"S16F15 rejected: PJID '{plan.PJID}' already exists with a different definition.");
+                    }
+                    else
+                    {
+                        newPlans.Add(plan);
+                    }
+                }
 
                 // S16F15 最小幂等保护，按 DATAID + PJID 集合防重。
                 pjKey = BuildS16F15IdempotencyKey(request);
@@ -187,48 +214,25 @@ namespace SECShandler.Functions
                     return;
                 }
 
-                // 仅 OnLineRemote 允许；且至少包含一个有效 PJ（PJID 非空）。
-                var hasValidPj = request.ProcessJobs.Any(p => !string.IsNullOrWhiteSpace(p.PJID));
-                ack = device.IsOnline == DeviceOnlineState.OnLineRemote && hasValidPj ? (byte)0 : (byte)1;
-
-                // S16F15 仅做计划缓存，不直接执行；等待 S14F9 关联与 Carrier 到达触发。
-                if (ack == 0)
+                // 整批校验通过后仅保存新 PJ，不直接下发配方或 START。
+                foreach (var plan in newPlans)
                 {
-                    var validJobs = request.ProcessJobs.Where(p => !string.IsNullOrWhiteSpace(p.PJID)).ToList();
-                    if (validJobs.Count == 0)
-                    {
-                        ack = 1;
-                    }
-                    else
-                    {
-                        foreach (var processJob in validJobs)
-                        {
-                            // 将 PJ 关键字段落入运行态缓存，供后续 S14F9 关联和 Carrier 到达调度使用。
-                            var plan = new ProcessJobPlan
-                            {
-                                PJID = processJob.PJID.Trim(),
-                                RecipeId = processJob.RecipeId?.Trim() ?? string.Empty,
-                                AutoStart = processJob.PRPROCESSSTART,
-                                PauseEvents = processJob.PRPAUSEEVENT.Distinct().ToList(),
-                                Carriers = processJob.Carriers
-                                    .Where(c => !string.IsNullOrWhiteSpace(c.CarrierId))
-                                    .Select(c => new ProcessJobCarrierPlan
-                                    {
-                                        CarrierId = c.CarrierId.Trim(),
-                                        Slots = c.Slots.Where(x => x > 0).Distinct().ToList()
-                                    })
-                                    .ToList(),
-                                UpdatedAtUtc = DateTime.UtcNow
-                            };
-
-                            jobPlanStorage.UpsertProcessJob(plan);
-                        }
-                    }
+                    cancellationToken.ThrowIfCancellationRequested();
+                    jobPlanStorage.UpsertProcessJob(plan);
                 }
+                ack = 0;
             }
-            catch
+            catch (OperationCanceledException)
             {
-                // 解析失败时保持拒绝 ACK。
+                // 取消必须传播；仅释放本次占用，不将取消伪装成正常业务应答。
+                if (pjKey is not null && ownershipToken != Guid.Empty)
+                    idempotencyGuard.TryRemove("S16F15", pjKey, ownershipToken);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // 结构、业务校验或保存失败统一拒绝，并保留具体字段原因供诊断。
+                Console.WriteLine($"S16F15 rejected: {ex.Message}");
                 ack = 1;
             }
             // 失败释放只针对本次取得的令牌；不能删除重复请求或过期后新请求的记录。
@@ -247,6 +251,122 @@ namespace SECShandler.Functions
                 // 兜底分支：Primary 回包失败时通过 SecsGem 异步发送，尽量保证 Host 能收到 ACK。
                 await secsGem.SendAsync(reply, cancellationToken).ConfigureAwait(false);
             }
+        }
+
+        /// <summary>
+        /// 校验整批 PJ 的创建参数及 1～25 槽位范围并规范化计划，不查询 Mapping，不限制预留的配方参数修改。
+        /// </summary>
+        private static List<ProcessJobPlan> ValidateS16F15Plans(S16F15_data request)
+        {
+            if (request.ProcessJobs.Count == 0)
+                throw new InvalidOperationException("S16F15 requires at least one Process Job.");
+
+            var plans = new List<ProcessJobPlan>();
+            var jobIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            // 检查整批定义，不能过滤掉错误 PJ 后接受剩余部分。
+            foreach (var job in request.ProcessJobs)
+            {
+                // pjId验证
+                var pjId = job.PJID.Trim();
+                if (string.IsNullOrWhiteSpace(pjId) || !jobIds.Add(pjId))
+                    throw new InvalidOperationException($"Invalid or duplicate PJID '{pjId}'.");
+
+                // recipe验证
+                var recipeId = job.RecipeId.Trim();
+                if (string.IsNullOrWhiteSpace(recipeId))
+                    throw new InvalidOperationException($"PJ '{pjId}' requires a RecipeId.");
+
+                // MF验证。当前仅支持 Carrier + Slot（0D）；兼容 ASCII 的 0D/0x0D 表示。
+                var materialFormat = job.MF.Trim();
+                if (!string.Equals(materialFormat, "0D", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(materialFormat, "0x0D", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException($"PJ '{pjId}' has unsupported MF '{materialFormat}'. Expected 0D.");
+
+                // 当前设备无暂停能力，不能接受暂停要求后静默忽略。
+                if (job.PRPAUSEEVENT.Count != 0)
+                    throw new InvalidOperationException($"PJ '{pjId}' requests unsupported PRPAUSEEVENT.");
+                if (job.Carriers.Count == 0)
+                    throw new InvalidOperationException($"PJ '{pjId}' requires at least one Carrier.");
+
+                var plan = new ProcessJobPlan
+                {
+                    PJID = pjId,
+                    RecipeId = recipeId,
+                    AutoStart = job.PRPROCESSSTART,
+                    UpdatedAtUtc = DateTime.UtcNow
+                };
+                var carrierIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var carrier in job.Carriers)
+                {
+                    var carrierId = carrier.CarrierId.Trim();
+                    if (string.IsNullOrWhiteSpace(carrierId) || !carrierIds.Add(carrierId))
+                        throw new InvalidOperationException($"PJ '{pjId}' has an invalid or duplicate CarrierID '{carrierId}'.");
+                    if (carrier.Slots.Count == 0)
+                        throw new InvalidOperationException($"PJ '{pjId}', Carrier '{carrierId}' requires at least one Slot.");
+
+                    var slots = new HashSet<uint>();
+                    // 创建阶段检查固定物理范围及重复；实际占片和 Mapping 一致性由 Mapping 完成事件处理。
+                    foreach (var slot in carrier.Slots)
+                    {
+                        if (slot is < 1 or > 25)
+                            throw new InvalidOperationException($"PJ '{pjId}', Carrier '{carrierId}' has out-of-range Slot '{slot}'. Expected 1 through 25.");
+                        if (!slots.Add(slot))
+                            throw new InvalidOperationException($"PJ '{pjId}', Carrier '{carrierId}' has duplicate Slot '{slot}'.");
+                    }
+
+                    plan.Carriers.Add(new ProcessJobCarrierPlan
+                    {
+                        CarrierId = carrierId,
+                        Slots = carrier.Slots.ToList()
+                    });
+                }
+
+                plans.Add(plan);
+            }
+
+            return plans;
+        }
+
+        /// <summary>
+        /// 一次读取配方根目录下的一级文件夹，以文件夹名校验整批 PPID，不接受文件或嵌套路径。
+        /// </summary>
+        private static void ValidateS16F15Recipes(IEnumerable<ProcessJobPlan> plans, string recipeRootPath)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(recipeRootPath);
+            // 枚举失败直接交由处理层拒绝，不能在目录缺失或权限不足时跳过配方校验。
+            var recipeIds = Directory.EnumerateDirectories(recipeRootPath, "*", SearchOption.TopDirectoryOnly)
+                .Select(directory => new DirectoryInfo(directory).Name)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            // 只比较已枚举的文件夹名，不把 Host 提供的 PPID 拼接为文件路径。
+            foreach (var plan in plans)
+            {
+                if (!recipeIds.Contains(plan.RecipeId))
+                    throw new InvalidOperationException($"PJ '{plan.PJID}' references missing recipe '{plan.RecipeId}' under '{recipeRootPath}'.");
+            }
+        }
+
+        /// <summary>
+        /// 比较当前保存的 PJ 定义，不比较执行标志和时间；相同重传不得重置运行状态。
+        /// </summary>
+        private static bool HasSameProcessJobDefinition(ProcessJobPlan existing, ProcessJobPlan requested)
+        {
+            if (!string.Equals(existing.RecipeId, requested.RecipeId, StringComparison.Ordinal)
+                || existing.AutoStart != requested.AutoStart
+                || existing.PauseEvents.Count != 0
+                || existing.Carriers.Count != requested.Carriers.Count)
+                return false;
+
+            // Carrier 与 Slot 顺序不影响重复识别，但数量和完整集合必须一致。
+            foreach (var carrier in requested.Carriers)
+            {
+                var original = existing.Carriers.FirstOrDefault(c =>
+                    string.Equals(c.CarrierId, carrier.CarrierId, StringComparison.OrdinalIgnoreCase));
+                if (original is null || !original.Slots.OrderBy(s => s).SequenceEqual(carrier.Slots.OrderBy(s => s)))
+                    return false;
+            }
+
+            return true;
         }
 
         /// <summary>
