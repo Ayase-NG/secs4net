@@ -42,7 +42,8 @@ namespace SECSdata
         public string PJID { get; set; } = string.Empty;
 
         /// <summary>
-        /// 格式判断(Material Format),常见为 MF=0x0D(Carrier + Slot)
+        /// Material Format；B[1] 解析为两位大写十六进制文本，兼容旧 ASCII 原文。
+        /// 当前仅保存编码，设备是否支持该物料格式由业务层判断。
         /// </summary>
         public string MF { get; set; } = string.Empty;
 

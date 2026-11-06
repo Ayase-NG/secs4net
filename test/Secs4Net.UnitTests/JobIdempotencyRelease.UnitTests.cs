@@ -159,7 +159,7 @@ public class JobIdempotencyReleaseUnitTests
             ? new SecsMessage(16, 15)
             {
                 SecsItem = L(U4(1), L(L(A("PJ1"), A("MF"),
-                    L(L(A("CARRIER1"), L(U1(1)))), L(U1(1), A("RECIPE1")))))
+                    L(L(A("CARRIER1"), L(U1(1)))), L(U1(1), A("RECIPE1"), L()), Boolean(true), L())))
             }
             : new SecsMessage(14, 9)
             {
