@@ -95,7 +95,11 @@ public class JobIdempotencyReleaseUnitTests
         // 异步取得 Host 收到的业务 ACK。
         using var reply = await pendingReply;
         var succeeded = online && !storageFails;
-        reply.SecsItem!.FirstValue<byte>().Should().Be(succeeded ? (byte)0 : (byte)1);
+        // PJ 使用 Boolean ACKA，CJ 暂保留原来的字节 ACK 结构。
+        var accepted = processJob
+            ? reply.SecsItem![1][0].FirstValue<bool>()
+            : reply.SecsItem!.FirstValue<byte>() == 0;
+        accepted.Should().Be(succeeded);
         guard.TryBegin(scope, key, TimeSpan.FromSeconds(30)).Should().Be(!succeeded);
     }
 
@@ -150,7 +154,18 @@ public class JobIdempotencyReleaseUnitTests
 
         // 异步确认解析失败应答。
         using var reply = await pendingReply;
-        reply.SecsItem!.FirstValue<byte>().Should().Be(1);
+        // PJ 结构错误应携带失败确认和错误描述；CJ 应答结构未在本次调整。
+        if (processJob)
+        {
+            reply.SecsItem![0].Count.Should().Be(0);
+            reply.SecsItem[1][0].FirstValue<bool>().Should().BeFalse();
+            reply.SecsItem[1][1].Count.Should().Be(1);
+            reply.SecsItem[1][1][0][1].GetString().Should().Contain("S16F15");
+        }
+        else
+        {
+            reply.SecsItem!.FirstValue<byte>().Should().Be(1);
+        }
         guard.TryBegin(scope, key, TimeSpan.FromSeconds(30)).Should().BeFalse();
         guard.TryRemove(scope, key, token).Should().BeTrue();
     }

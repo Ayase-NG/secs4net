@@ -5,6 +5,7 @@ using SECShandler.Interfaces;
 using SECSparser;
 using System.IO;
 using System.Text;
+using System.Text.Json;
 
 namespace SECShandler.Functions
 {
@@ -154,8 +155,7 @@ namespace SECShandler.Functions
             var idempotencyKey = BuildIdempotencyKey(rcmd, data.Parameters);
         }
         /// <summary>
-        /// 处理 S16F15 请求并回复 S16F16（增强最小实现）。
-        /// ACK 约定：0=接受，1=拒绝。
+        /// 处理 S16F15 并回复包含 PJID、Boolean ACKA 和错误明细的 S16F16。
         /// 整批业务校验通过后才保存；相同 PJ 重传不覆盖执行状态，配方参数修改暂不限制。
         /// RecipeId 必须匹配配方根目录下的一级子文件夹名，默认根目录为 D:\GY-Recipes\Recipes。
         /// 拒绝时在回包前释放本次占用的去重记录，成功时保留短期防重。
@@ -169,9 +169,10 @@ namespace SECShandler.Functions
             IPortContextStorage portContextStorage,
             IJobPlanStorage jobPlanStorage,
             CancellationToken cancellationToken,
-            string recipeRootPath = @"D:\GY-Recipes\Recipes")
+            string recipeRootPath = @"D:\GY-Recipes\Recipes",
+            ISecsInteractionHistoryStore? interactionHistoryStore = null)
         {
-            var ack = (byte)1;
+            var replyData = new S16F16_data();
             string? pjKey = null;
             var ownershipToken = Guid.Empty;
 
@@ -196,6 +197,7 @@ namespace SECShandler.Functions
                         // 相同定义视为重传，不能用新对象重置 AutoStarted 等运行信息。
                         if (!HasSameProcessJobDefinition(existing, plan))
                             throw new InvalidOperationException($"S16F15 rejected: PJID '{plan.PJID}' already exists with a different definition.");
+                        replyData.PRJOBIDs.Add(plan.PJID);
                     }
                     else
                     {
@@ -207,11 +209,9 @@ namespace SECShandler.Functions
                 pjKey = BuildS16F15IdempotencyKey(request);
                 if (!idempotencyGuard.TryBegin("S16F15", pjKey, TimeSpan.FromSeconds(30), out ownershipToken))
                 {
-                    ack = 0;
-                    var duplicatedReply = S16F16_builder.Build(ack);
-                    // 命中幂等后立即异步回复 S16F16，告知 Host 本次请求已被接收过且无需重复处理。
-                    await primary.TryReplyAsync(duplicatedReply, cancellationToken).ConfigureAwait(false);
-                    return;
+                    // 只根据已保存的计划确认成功，不能把另一请求尚未结束的占用当成创建完成。
+                    if (newPlans.Count != 0)
+                        throw new InvalidOperationException("Process Job creation is already being processed; not all requested jobs are confirmed.");
                 }
 
                 // 整批校验通过后仅保存新 PJ，不直接下发配方或 START。
@@ -219,8 +219,9 @@ namespace SECShandler.Functions
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     jobPlanStorage.UpsertProcessJob(plan);
+                    replyData.PRJOBIDs.Add(plan.PJID);
                 }
-                ack = 0;
+                replyData.ACKA = true;
             }
             catch (OperationCanceledException)
             {
@@ -233,23 +234,41 @@ namespace SECShandler.Functions
             {
                 // 结构、业务校验或保存失败统一拒绝，并保留具体字段原因供诊断。
                 Console.WriteLine($"S16F15 rejected: {ex.Message}");
-                ack = 1;
+                replyData.ACKA = false;
+                replyData.Errors.Add(new S16F16_error_data { ERRTEXT = ex.Message });
             }
             // 失败释放只针对本次取得的令牌；不能删除重复请求或过期后新请求的记录。
-            if (ack != 0 && pjKey is not null && ownershipToken != Guid.Empty)
+            if (!replyData.ACKA && pjKey is not null && ownershipToken != Guid.Empty)
             {
                 idempotencyGuard.TryRemove("S16F15", pjKey, ownershipToken);
             }
-            var reply = S16F16_builder.Build(ack);
-            try
+            // 无 W-bit 时仍完成创建处理，但不发送 SecondaryMessage。
+            if (!primary.PrimaryMessage.ReplyExpected)
+                return;
+
+            replyData.timeStamp = DateTime.UtcNow;
+            var reply = S16F16_builder.Build(replyData);
+            // 异步通过原事务返回应答；发送异常传播，不能以新 System Bytes 重发 SecondaryMessage。
+            var sent = await primary.TryReplyAsync(reply, cancellationToken).ConfigureAwait(false);
+            // 只记录本次实际发送的设备侧应答，不将 ACKA 写入专用于 HCACK 的数据库字段。
+            if (sent && interactionHistoryStore is not null)
             {
-                // 优先使用 Primary 通道异步回发 S16F16，确保与当前事务上下文一一对应。
-                await primary.TryReplyAsync(reply, cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception)
-            {
-                // 兜底分支：Primary 回包失败时通过 SecsGem 异步发送，尽量保证 Host 能收到 ACK。
-                await secsGem.SendAsync(reply, cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    // 异步保存完整确认数据用于追溯，与 Host 入站 S16F15 记录按消息类型区分。
+                    await interactionHistoryStore.SaveInteractionAsync("S16F16", JsonSerializer.Serialize(replyData),
+                        null, replyData.timeStamp, cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    // 保留服务停止语义，但不撤销已经完成的创建和已发送应答。
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    // 追溯故障不能造成业务重试或发送第二次应答。
+                    Console.WriteLine($"Failed to persist S16F16 acknowledgement: {ex.Message}");
+                }
             }
         }
 

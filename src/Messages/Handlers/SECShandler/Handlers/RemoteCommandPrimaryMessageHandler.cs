@@ -40,6 +40,9 @@ namespace SECShandler.Handlers
 
         public bool CanHandle(int s, int f) => (s, f) is (2, 41) or (2, 49) or (16, 15) or (14, 9);
 
+        /// <summary>
+        /// 分发远程命令和作业创建消息，将 S16F16 确认结果接入设备侧数据库追溯。
+        /// </summary>
         public async Task HandleAsync(SecsGem secsGem, PrimaryMessageWrapper primaryMessage, CancellationToken cancellationToken)
         {
             var msg = primaryMessage.PrimaryMessage;
@@ -48,18 +51,24 @@ namespace SECShandler.Handlers
             {
                 case (2, 41):
                     Console.WriteLine("进入S2F41分发处理");
+                    // 异步处理远程命令并返回确认。
                     await RemoteCommandSxFyFunctions.HandleS2F41Async(primaryMessage, _device, _measurementDispatcher, _interactionHistoryStore, _idempotencyGuard, cancellationToken);
                     break;
                 case (2, 49):
                     Console.WriteLine("进入S2F49分发处理");
+                    // 异步处理增强远程命令并返回确认。
                     await RemoteCommandSxFyFunctions.HandleS2F49Async(primaryMessage, _device, _measurementDispatcher, _interactionHistoryStore, _idempotencyGuard, cancellationToken);
                     break;
                 case (16, 15):
                     Console.WriteLine("进入S16F15分发处理");
-                    await RemoteCommandSxFyFunctions.HandleS16F15Async(secsGem, primaryMessage, _device, _measurementDispatcher, _idempotencyGuard, _portContextStorage, _jobPlanStorage, cancellationToken);
+                    // 异步创建 PJ、返回结构化 S16F16，并保存设备确认结果。
+                    await RemoteCommandSxFyFunctions.HandleS16F15Async(secsGem, primaryMessage, _device, _measurementDispatcher,
+                        _idempotencyGuard, _portContextStorage, _jobPlanStorage, cancellationToken,
+                        interactionHistoryStore: _interactionHistoryStore);
                     break;
                 case (14, 9):
                     Console.WriteLine("进入S14F9分发处理");
+                    // 异步创建关联 CJ 并返回对象创建确认。
                     await RemoteCommandSxFyFunctions.HandleS14F9Async(secsGem, primaryMessage, _device, _idempotencyGuard, _portContextStorage, _jobPlanStorage, cancellationToken);
                     break;
             }

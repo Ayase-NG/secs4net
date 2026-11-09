@@ -357,6 +357,27 @@ public class S16F15BusinessValidationUnitTests
         using var reply = await pendingReply;
         dispatcher.ReceivedCalls().Should().BeEmpty();
         ports.ReceivedCalls().Should().BeEmpty();
-        return reply.SecsItem!.FirstValue<byte>();
+        reply.S.Should().Be(16);
+        reply.F.Should().Be(16);
+        reply.ReplyExpected.Should().BeFalse();
+        var root = reply.SecsItem!;
+        root.Format.Should().Be(SecsFormat.List);
+        root.Count.Should().Be(2);
+        root[0].Format.Should().Be(SecsFormat.List);
+        root[1].Count.Should().Be(2);
+        root[1][0].Format.Should().Be(SecsFormat.Boolean);
+        root[1][0].Count.Should().Be(1);
+        var accepted = root[1][0].FirstValue<bool>();
+        root[1][1].Format.Should().Be(SecsFormat.List);
+        root[1][1].Count.Should().Be(accepted ? 0 : 1);
+        // 失败描述采用 U2 ERRCODE + ASCII ERRTEXT，不再是单个字节 ACK。
+        if (!accepted)
+        {
+            root[1][1][0].Count.Should().Be(2);
+            root[1][1][0][0].Format.Should().Be(SecsFormat.U2);
+            root[1][1][0][1].GetString().Should().NotBeNullOrWhiteSpace();
+        }
+
+        return accepted ? (byte)0 : (byte)1;
     }
 }
