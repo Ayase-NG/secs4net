@@ -206,6 +206,54 @@ public sealed class SecsHandlerRuntimeState : IDevice, IReportStorage, IEventLin
         }
     }
 
+    /// <summary>
+    /// 在设备共享锁内领取单个 Carrier，避免不同 PJ 的配方选择和启动交叉执行。
+    /// </summary>
+    public bool TryBeginCarrierExecution(string pjId, string carrierId)
+    {
+        lock (_stateLock)
+        {
+            // 未确认的启动同样占用执行权，重启恢复后也不能自动重发。
+            if (_processJobs.Values.SelectMany(plan => plan.Carriers).Any(carrier =>
+                carrier.State is ProcessJobCarrierState.Starting or ProcessJobCarrierState.StartUncertain or ProcessJobCarrierState.Processing))
+                return false;
+            if (!_processJobs.TryGetValue(pjId.Trim(), out var plan))
+                return false;
+            var carrier = plan.Carriers.FirstOrDefault(value => string.Equals(value.CarrierId, carrierId.Trim(), StringComparison.OrdinalIgnoreCase));
+            // 仅允许尚未开始的自动作业进入启动链路，手动作业等待独立授权入口。
+            if (!plan.AutoStart || carrier is null || carrier.State is not (ProcessJobCarrierState.Waiting or ProcessJobCarrierState.Ready))
+                return false;
+            carrier.State = ProcessJobCarrierState.Starting;
+            plan.UpdatedAtUtc = DateTime.UtcNow;
+        }
+
+        PersistSnapshotNoThrow();
+        return true;
+    }
+
+    /// <summary>
+    /// 比较预期状态后更新 Carrier，避免异步执行结果覆盖设备事件已写入的终态。
+    /// </summary>
+    public bool TryUpdateCarrierState(string pjId, string carrierId, ProcessJobCarrierState expected, ProcessJobCarrierState state)
+    {
+        // 拒绝未定义值，防止状态进入无法识别的分支。
+        if (!Enum.IsDefined(expected) || !Enum.IsDefined(state))
+            throw new ArgumentOutOfRangeException(nameof(state));
+        lock (_stateLock)
+        {
+            if (!_processJobs.TryGetValue(pjId.Trim(), out var plan))
+                return false;
+            var carrier = plan.Carriers.FirstOrDefault(value => string.Equals(value.CarrierId, carrierId.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (carrier is null || carrier.State != expected)
+                return false;
+            carrier.State = state;
+            plan.UpdatedAtUtc = DateTime.UtcNow;
+        }
+
+        PersistSnapshotNoThrow();
+        return true;
+    }
+
     public void UpsertControlJob(ControlJobPlan plan)
     {
         ArgumentNullException.ThrowIfNull(plan);

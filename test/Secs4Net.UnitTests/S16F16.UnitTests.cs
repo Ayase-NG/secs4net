@@ -144,6 +144,24 @@ public class S16F16UnitTests
     }
 
     /// <summary>
+    /// 仅创建成功后触发执行，执行返回失败不改变已经发送的创建确认。
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Handle_CreationResult_TriggersExecutionOnlyWhenAccepted(bool accepted)
+    {
+        var execution = Substitute.For<IProcessJobExecutionCoordinator>();
+        execution.TryExecuteAsync(Arg.Any<CancellationToken>()).Returns(false);
+        // 异步取得已经发送的创建结果，执行失败不能回写 ACKA。
+        using var reply = await HandleAsync(accepted ? L(BuildJob("PJ1")) : L(),
+            Substitute.For<IJobPlanStorage>(), execution: execution);
+
+        reply.SecsItem![1][0].FirstValue<bool>().Should().Be(accepted);
+        execution.ReceivedCalls().Should().HaveCount(accepted ? 1 : 0);
+    }
+
+    /// <summary>
     /// 批次中的 MF 不受支持时，返回字段错误且不保存任何 PJ 或占用去重键。
     /// </summary>
     [Fact]
@@ -406,7 +424,7 @@ public class S16F16UnitTests
     /// 使用隔离配方目录和实际内存 SECS 收发取得结构化创建应答。
     /// </summary>
     private static async Task<SecsMessage> HandleAsync(Item batch, IJobPlanStorage jobs, IIdempotencyGuard? guard = null,
-        ISecsInteractionHistoryStore? history = null)
+        ISecsInteractionHistoryStore? history = null, IProcessJobExecutionCoordinator? execution = null)
     {
         using var recipes = new RecipeDirectoryFixture("RECIPE1");
         var pipe1 = new Pipe(new PipeOptions(useSynchronizationContext: false));
@@ -431,7 +449,7 @@ public class S16F16UnitTests
         // 异步执行业务处理和应答。
         await RemoteCommandSxFyFunctions.HandleS16F15Async(equipment, primary, device,
             Substitute.For<ICommandDispatcher>(), guard ?? new InMemoryIdempotencyGuard(),
-            Substitute.For<IPortContextStorage>(), jobs, cts.Token, recipes.DirectoryPath, history);
+            Substitute.For<IPortContextStorage>(), jobs, cts.Token, recipes.DirectoryPath, history, execution);
         // 异步返回 Host 解码后的应答，由测试调用方负责释放。
         return await pendingReply;
     }

@@ -34,10 +34,12 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
     private readonly IReportStorage _reportStorage;
     private readonly IVidValueStorage _vidValueStorage;
     private readonly ITypedVidValueStorage _typedVidValueStorage;
+    private readonly IProcessJobExecutionCoordinator? _executionCoordinator;
+    private readonly IProcessJobMaterialObserver? _materialObserver;
     private readonly Nacos.V2.INacosNamingService _nacos;
 
     /// <summary>
-    /// 初始化上报服务及独立的类型化 VID 缓存，保留原字符串 VID 存储依赖。
+    /// 初始化上报服务、独立的类型化 VID 缓存及事件上报后的统一 PJ 执行入口。
     /// </summary>
     public ReportGrpc(
         ILogger<ReportGrpc> logger,
@@ -57,7 +59,9 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
         IReportStorage reportStorage,
         IVidValueStorage vidValueStorage,
         INacosNamingService nacos,
-        ITypedVidValueStorage typedVidValueStorage)
+        ITypedVidValueStorage typedVidValueStorage,
+        IProcessJobExecutionCoordinator? executionCoordinator = null,
+        IProcessJobMaterialObserver? materialObserver = null)
     {
         _logger = logger;
         _secsGemContext = secsGemContext;
@@ -77,11 +81,14 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
         _vidValueStorage = vidValueStorage;
         _nacos = nacos;
         _typedVidValueStorage = typedVidValueStorage;
+        _executionCoordinator = executionCoordinator;
+        _materialObserver = materialObserver;
     }
 
     /// <summary>
     /// 通用事件上报：EFEM 传 EventName + 参数，本项目通过 CEID.csv 映射到 CEID 并发送 S6F11。
     /// 类型化参数转换成功后旁路缓存，不改变原字符串 VID 存储及本次上报的取值方式。
+    /// 成功发送事件后才触发统一执行入口，确保 Mapping 报告先于自动启动。
     /// </summary>
     public override async Task<ReportReply> ReportEvent(GenericEventReportRequest request, ServerCallContext context)
     {
@@ -95,6 +102,8 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
             ToParameterLogText(request.Parameters),
             ToParameterLogText(request.TypedParameters));
 
+        // 物料更新先撤销旧 Mapping 就绪证据，报告失败也不能让并行创建复用旧物料。
+        _materialObserver?.InvalidateReportedValues(request.Parameters.Keys.Concat(request.TypedParameters.Keys).ToArray());
         // 通用事件上报前先刷新 VID 动态值表，为S1F11和S6F11提供数据。
         UpdateVidRuntimeValues(request.Parameters);
 
@@ -172,6 +181,10 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
                 };
             }
         }
+        // 异步在全部事件报告成功后尝试执行，物料或 Mapping 未就绪时不会下发任何命令。
+        _materialObserver?.ConfirmReportedValues(request.Parameters.Keys.ToArray(), request.TypedParameters.Keys.ToArray());
+        if (_executionCoordinator is not null)
+            await _executionCoordinator.TryExecuteAsync(context.CancellationToken).ConfigureAwait(false);
         return new ReportReply { Success = true, Code = 0, Message = "OK" };
     }
 

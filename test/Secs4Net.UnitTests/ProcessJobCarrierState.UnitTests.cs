@@ -32,6 +32,8 @@ public class ProcessJobCarrierStateUnitTests
     [InlineData(ProcessJobCarrierState.Completed)]
     [InlineData(ProcessJobCarrierState.Cancelled)]
     [InlineData(ProcessJobCarrierState.Aborted)]
+    [InlineData(ProcessJobCarrierState.Starting)]
+    [InlineData(ProcessJobCarrierState.StartUncertain)]
     public void SerializePlan_PreservesIndependentCarrierStates(ProcessJobCarrierState state)
     {
         var plan = new ProcessJobPlan { PJID = "PJ1" };

@@ -22,6 +22,16 @@ namespace SECShandler.Interfaces
         IReadOnlyList<ProcessJobPlan> GetAllProcessJobs();
 
         /// <summary>
+        /// 设备级原子领取待执行 Carrier；已有 Starting、StartUncertain 或 Processing 时拒绝领取。
+        /// </summary>
+        bool TryBeginCarrierExecution(string pjId, string carrierId);
+
+        /// <summary>
+        /// 按预期状态更新 Carrier，不覆盖其他事件已更新的状态；仅供可信设备事件或执行流程调用。
+        /// </summary>
+        bool TryUpdateCarrierState(string pjId, string carrierId, ProcessJobCarrierState expected, ProcessJobCarrierState state);
+
+        /// <summary>
         /// 新增或更新 ControlJob 计划。
         /// </summary>
         void UpsertControlJob(ControlJobPlan plan);
@@ -126,7 +136,17 @@ namespace SECShandler.Interfaces
         /// <summary>
         /// 任务已确认终止并完成必要的安全收尾，不用于表示可恢复的临时故障。
         /// </summary>
-        Aborted = 5
+        Aborted = 5,
+
+        /// <summary>
+        /// 已原子领取任务，正在执行配方选择及启动；不得被其他触发点重复领取。
+        /// </summary>
+        Starting = 6,
+
+        /// <summary>
+        /// 启动链路异常或结果不确定，必须核实设备状态后处理，禁止自动重发。
+        /// </summary>
+        StartUncertain = 7
     }
 
     /// <summary>

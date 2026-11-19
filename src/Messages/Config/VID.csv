@@ -12,10 +12,10 @@ VID,Type,Name,Format,DefaultValue,Explain
 1011,SVID,LP2CarAccessStatus,A,,
 1012,SVID,LP3CarAccessStatus,A,,
 1013,SVID,LP4CarAccessStatus,A,,
-1014,SVID,LP1MapSotList,List,,载具Mapping结果状态，1存在、0为空、2为故障
-1015,SVID,LP2MapSotList,List,,
-1016,SVID,LP3MapSotList,List,,
-1017,SVID,LP4MapSotList,List,,
+1014,SVID,LP1MapSlotList,List,,载具Mapping结果状态，1存在、0为空、2为故障
+1015,SVID,LP2MapSlotList,List,,
+1016,SVID,LP3MapSlotList,List,,
+1017,SVID,LP4MapSlotList,List,,
 1018,SVID,SlotState,A,,晶圆状态，Notstate、Resource、Aborted
 1019,SVID,SpoolCountActual,U4,,暂存的待上传消息数量，当设备与Host断连后暂存待发送消息后续连上后再发（尚未实现此功能）
 1020,SVID,EdgeSlotId,U4,,Edge工位上的晶圆槽位号

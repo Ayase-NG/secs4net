@@ -43,6 +43,9 @@
 		<Compile Include="..\..\common\Usings.cs" Link="common\Usings.cs" />
 		<Compile Include="..\..\common\RuntimeHelpers.cs" Link="common\RuntimeHelpers.cs" />
         <Compile Include="..\..\src\SECSGrpcService\Services\InMemoryIdempotencyGuard.cs" Link="Services\InMemoryIdempotencyGuard.cs" />
+        <Compile Include="..\..\src\SECSGrpcService\Services\ProcessJobGrpcSequence.cs" Link="Services\ProcessJobGrpcSequence.cs" />
+        <Compile Include="..\..\src\SECSGrpcService\Services\ProcessJobMaterialSource.cs" Link="Services\ProcessJobMaterialSource.cs" />
+		<Compile Include="..\..\src\SECSGrpcService\Services\VidMap.cs" Link="Services\VidMap.cs" />
 	</ItemGroup>
 
 	<ItemGroup>

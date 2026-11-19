@@ -164,6 +164,12 @@ builder.Services.AddSingleton(sp =>
     .AddSingleton<IS6F11SpoolStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>()) //S6F11上报缓存
     .AddSingleton<IPortContextStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>())
     .AddSingleton<IJobPlanStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>())
+    // 统一事件驱动的自动 PJ 执行流程，不注册额外后台轮询任务。
+    .AddSingleton<ProcessJobMaterialSource>()
+    .AddSingleton<IProcessJobMaterialSource>(sp => sp.GetRequiredService<ProcessJobMaterialSource>())
+    .AddSingleton<IProcessJobMaterialObserver>(sp => sp.GetRequiredService<ProcessJobMaterialSource>())
+    .AddSingleton<IProcessJobExecutionClient, ProcessJobExecutionClient>()
+    .AddSingleton<IProcessJobExecutionCoordinator, SECShandler.Functions.ProcessJobExecutionCoordinator>()
     .AddSingleton<IVidValueStorage>(sp => sp.GetRequiredService<SecsHandlerRuntimeState>())
     // 类型化 VID 缓存独立注册，暂不替换现有字符串存储与查询链路。
     .AddSingleton<ITypedVidValueStorage, SECShandler.Storage.TypedVidValueStorage>()

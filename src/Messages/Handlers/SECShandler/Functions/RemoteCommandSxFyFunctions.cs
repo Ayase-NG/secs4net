@@ -158,6 +158,7 @@ namespace SECShandler.Functions
         /// 处理 S16F15 并回复包含 PJID、Boolean ACKA 和错误明细的 S16F16。
         /// 整批业务校验通过后才保存；本批及存储中跨 PJ 的 Carrier 冲突分别返回 Errors，相同 PJ 重传不覆盖执行状态。
         /// 按 Host 串行创建约定处理，存储中的 PJ 均保守视为活动计划。
+        /// 创建应答完成后可异步触发统一执行入口，执行失败不改变已确认的创建结果。
         /// RecipeId 必须匹配配方根目录下的一级子文件夹名，默认根目录为 D:\GY-Recipes\Recipes。
         /// 拒绝时在回包前释放本次占用的去重记录，成功时保留短期防重。
         /// </summary>
@@ -171,7 +172,8 @@ namespace SECShandler.Functions
             IJobPlanStorage jobPlanStorage,
             CancellationToken cancellationToken,
             string recipeRootPath = @"D:\GY-Recipes\Recipes",
-            ISecsInteractionHistoryStore? interactionHistoryStore = null)
+            ISecsInteractionHistoryStore? interactionHistoryStore = null,
+            IProcessJobExecutionCoordinator? executionCoordinator = null)
         {
             var replyData = new S16F16_data();
             string? pjKey = null;
@@ -254,7 +256,12 @@ namespace SECShandler.Functions
             }
             // 无 W-bit 时仍完成创建处理，但不发送 SecondaryMessage。
             if (!primary.PrimaryMessage.ReplyExpected)
+            {
+                // 异步尝试执行已经接受的自动作业，不将执行结果当作创建结果。
+                if (replyData.ACKA && executionCoordinator is not null)
+                    await executionCoordinator.TryExecuteAsync(cancellationToken).ConfigureAwait(false);
                 return;
+            }
 
             replyData.timeStamp = DateTime.UtcNow;
             var reply = S16F16_builder.Build(replyData);
@@ -280,6 +287,9 @@ namespace SECShandler.Functions
                     Console.WriteLine($"Failed to persist S16F16 acknowledgement: {ex.Message}");
                 }
             }
+            // 异步在创建成功应答实际发出后尝试执行；执行失败不能发送第二条 S16F16。
+            if (sent && replyData.ACKA && executionCoordinator is not null)
+                await executionCoordinator.TryExecuteAsync(cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>
