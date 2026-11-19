@@ -94,7 +94,43 @@ namespace SECShandler.Interfaces
     }
 
     /// <summary>
-    /// ProcessJob 下的单个 Carrier 计划。
+    /// 设备内部的 Carrier 执行状态，不等同于标准 PJ 状态；由设备确认事件驱动更新。
+    /// </summary>
+    public enum ProcessJobCarrierState
+    {
+        /// <summary>
+        /// 计划已创建，等待物料或执行条件；零值兼容未包含状态字段的旧快照。
+        /// </summary>
+        Waiting = 0,
+
+        /// <summary>
+        /// Carrier 已到位、Mapping 校验通过，满足当前调度条件。
+        /// </summary>
+        Ready = 1,
+
+        /// <summary>
+        /// 设备已确认开始加工，不能仅根据 START 发送成功设置。
+        /// </summary>
+        Processing = 2,
+
+        /// <summary>
+        /// 选定槽位加工完成且晶圆归位等收尾已确认，不代表 PJ 已归档或占用已释放。
+        /// </summary>
+        Completed = 3,
+
+        /// <summary>
+        /// 尚未加工的任务已确认取消。
+        /// </summary>
+        Cancelled = 4,
+
+        /// <summary>
+        /// 任务已确认终止并完成必要的安全收尾，不用于表示可恢复的临时故障。
+        /// </summary>
+        Aborted = 5
+    }
+
+    /// <summary>
+    /// ProcessJob 下的单个 Carrier 定义及执行状态；完成后保留条目供重传比较和归档。
     /// </summary>
     public sealed class ProcessJobCarrierPlan
     {
@@ -107,6 +143,11 @@ namespace SECShandler.Interfaces
         /// 计划槽位列表。
         /// </summary>
         public List<uint> Slots { get; set; } = new();
+
+        /// <summary>
+        /// 当前执行状态；新计划默认等待，运行状态不参与创建请求的定义比较。
+        /// </summary>
+        public ProcessJobCarrierState State { get; set; } = ProcessJobCarrierState.Waiting;
     }
 
     /// <summary>

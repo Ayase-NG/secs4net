@@ -296,7 +296,7 @@ public class S16F16UnitTests
     }
 
     /// <summary>
-    /// 已确认保存的相同 PJ 重传返回成功标识，但不重置其执行状态。
+    /// 已确认保存的相同 PJ 重传返回成功标识，不因 Carrier 状态不同而拒绝或重置执行状态。
     /// </summary>
     [Fact]
     public async Task Handle_DuplicateWithConfirmedPlan_ReturnsSuccess()
@@ -305,7 +305,10 @@ public class S16F16UnitTests
         var existing = new ProcessJobPlan
         {
             PJID = " pj1 ", RecipeId = "RECIPE1", AutoStart = true, AutoStarted = true,
-            Carriers = new List<ProcessJobCarrierPlan> { new() { CarrierId = "CARRIER1", Slots = new List<uint> { 1 } } }
+            Carriers = new List<ProcessJobCarrierPlan>
+            {
+                new() { CarrierId = "CARRIER1", Slots = new List<uint> { 1 }, State = ProcessJobCarrierState.Processing }
+            }
         };
         jobs.GetAllProcessJobs().Returns(new[] { existing });
         jobs.TryGetProcessJob("PJ1", out Arg.Any<ProcessJobPlan>()).Returns(call =>
@@ -323,6 +326,7 @@ public class S16F16UnitTests
         reply.SecsItem[1][1].Count.Should().Be(0);
         jobs.DidNotReceive().UpsertProcessJob(Arg.Any<ProcessJobPlan>());
         existing.AutoStarted.Should().BeTrue();
+        existing.Carriers[0].State.Should().Be(ProcessJobCarrierState.Processing);
     }
 
     /// <summary>

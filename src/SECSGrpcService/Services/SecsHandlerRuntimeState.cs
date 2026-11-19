@@ -1005,6 +1005,9 @@ public sealed class SecsHandlerRuntimeState : IDevice, IReportStorage, IEventLin
         };
     }
 
+    /// <summary>
+    /// 深拷贝 PJ 定义及 Carrier 执行状态，供存储读写和快照恢复使用。
+    /// </summary>
     private static ProcessJobPlan CloneProcessJobPlan(ProcessJobPlan source)
     {
         return new ProcessJobPlan
@@ -1017,7 +1020,8 @@ public sealed class SecsHandlerRuntimeState : IDevice, IReportStorage, IEventLin
                 .Select(x => new ProcessJobCarrierPlan
                 {
                     CarrierId = x.CarrierId,
-                    Slots = x.Slots.ToList()
+                    Slots = x.Slots.ToList(),
+                    State = x.State
                 })
                 .ToList(),
             AutoStarted = source.AutoStarted,
