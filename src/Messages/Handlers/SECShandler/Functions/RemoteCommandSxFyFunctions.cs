@@ -156,7 +156,8 @@ namespace SECShandler.Functions
         }
         /// <summary>
         /// 处理 S16F15 并回复包含 PJID、Boolean ACKA 和错误明细的 S16F16。
-        /// 整批业务校验通过后才保存；相同 PJ 重传不覆盖执行状态，配方参数修改暂不限制。
+        /// 整批业务校验通过后才保存；本批及存储中跨 PJ 的 Carrier 冲突分别返回 Errors，相同 PJ 重传不覆盖执行状态。
+        /// 按 Host 串行创建约定处理，存储中的 PJ 均保守视为活动计划。
         /// RecipeId 必须匹配配方根目录下的一级子文件夹名，默认根目录为 D:\GY-Recipes\Recipes。
         /// 拒绝时在回包前释放本次占用的去重记录，成功时保留短期防重。
         /// </summary>
@@ -179,7 +180,7 @@ namespace SECShandler.Functions
             try
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                // 先解析并校验 S16F15 消息结构。
+                // 先解析并校验 S16F15 的 MF 和消息结构。
                 var request = S16F15_parser.Parse(primary.PrimaryMessage);
 
                 // 创建阶段只要求远程在线，不要求物料已到达或设备当前空闲。
@@ -188,6 +189,8 @@ namespace SECShandler.Functions
 
                 var plans = ValidateS16F15Plans(request);
                 ValidateS16F15Recipes(plans, recipeRootPath);
+                // 创建前检查存储中的活动占用，冲突时不占用去重键、不保存本批任何新 PJ。
+                ValidateS16F15ActiveCarriers(plans, jobPlanStorage.GetAllProcessJobs());
                 var newPlans = new List<ProcessJobPlan>();
                 // 先检查整批已有 PJ 冲突，防止后面的无效 PJ 导致前面的有效 PJ 已被写入。
                 foreach (var plan in plans)
@@ -229,6 +232,13 @@ namespace SECShandler.Functions
                 if (pjKey is not null && ownershipToken != Guid.Empty)
                     idempotencyGuard.TryRemove("S16F15", pjKey, ownershipToken);
                 throw;
+            }
+            catch (S16F15CarrierConflictException ex)
+            {
+                // 每个重复 Carrier 单独上报，不合并为通用异常文本或额外发送一条应答。
+                replyData.ACKA = false;
+                replyData.Errors.AddRange(ex.Errors);
+                Console.WriteLine($"S16F15 rejected: {ex.Message}");
             }
             catch (Exception ex)
             {
@@ -273,7 +283,7 @@ namespace SECShandler.Functions
         }
 
         /// <summary>
-        /// 校验整批 PJ 的创建参数及 1～25 槽位范围并规范化计划，不查询 Mapping，不限制预留的配方参数修改。
+        /// 校验整批 PJ 的创建参数、1～25 槽位及跨 PJ Carrier 唯一性，不查询 Mapping。
         /// </summary>
         private static List<ProcessJobPlan> ValidateS16F15Plans(S16F15_data request)
         {
@@ -294,12 +304,6 @@ namespace SECShandler.Functions
                 var recipeId = job.RecipeId.Trim();
                 if (string.IsNullOrWhiteSpace(recipeId))
                     throw new InvalidOperationException($"PJ '{pjId}' requires a RecipeId.");
-
-                // MF验证。当前仅支持 Carrier + Slot（0D）；兼容 ASCII 的 0D/0x0D 表示。
-                var materialFormat = job.MF.Trim();
-                if (!string.Equals(materialFormat, "0D", StringComparison.OrdinalIgnoreCase)
-                    && !string.Equals(materialFormat, "0x0D", StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidOperationException($"PJ '{pjId}' has unsupported MF '{materialFormat}'. Expected 0D.");
 
                 // 当前设备无暂停能力，不能接受暂停要求后静默忽略。
                 if (job.PRPAUSEEVENT.Count != 0)
@@ -343,7 +347,73 @@ namespace SECShandler.Functions
                 plans.Add(plan);
             }
 
+            // 先检查本批唯一性，再由创建入口检查存储中的活动占用。
+            var conflicts = plans.SelectMany(plan => plan.Carriers.Select(carrier => new { plan.PJID, carrier.CarrierId }))
+                .GroupBy(entry => entry.CarrierId, StringComparer.OrdinalIgnoreCase)
+                .Where(group => group.Count() > 1)
+                .Select(group => new S16F16_error_data
+                {
+                    ERRTEXT = $"CarrierID '{group.Key}' is assigned to multiple Process Jobs in this batch: {string.Join(", ", group.Select(entry => $"'{entry.PJID}'"))}."
+                }).ToList();
+            // 收集全部 Carrier 冲突后再拒绝，让 Host 一次取得独立的错误明细。
+            if (conflicts.Count != 0)
+                throw new S16F15CarrierConflictException(conflicts);
+
             return plans;
+        }
+
+        /// <summary>
+        /// 检查活动快照中的 Carrier 占用，排除同一 PJID；其定义一致性由后续重传检查负责。
+        /// </summary>
+        private static void ValidateS16F15ActiveCarriers(
+            IReadOnlyList<ProcessJobPlan> plans, IReadOnlyList<ProcessJobPlan> activePlans)
+        {
+            // 当前无终态移除闭环，所有仍在存储中的 PJ 均保留占用，不能用 AutoStarted 推断完成。
+            var owners = activePlans.SelectMany(plan => plan.Carriers.Select(carrier => new
+                {
+                    PJID = plan.PJID.Trim(),
+                    CarrierId = carrier.CarrierId.Trim()
+                }))
+                .ToLookup(entry => entry.CarrierId, StringComparer.OrdinalIgnoreCase);
+            var errors = new List<S16F16_error_data>();
+            foreach (var plan in plans)
+            {
+                foreach (var carrier in plan.Carriers)
+                {
+                    var conflictingIds = owners[carrier.CarrierId]
+                        .Where(owner => !string.Equals(owner.PJID, plan.PJID, StringComparison.OrdinalIgnoreCase))
+                        .Select(owner => owner.PJID)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                    // 每个冲突 Carrier 独立报告请求 PJ 及全部占用 PJ，不能静默过滤本批计划。
+                    if (conflictingIds.Count != 0)
+                        errors.Add(new S16F16_error_data
+                        {
+                            ERRTEXT = $"CarrierID '{carrier.CarrierId}' requested by PJ '{plan.PJID}' is already assigned to active Process Jobs: {string.Join(", ", conflictingIds.Select(id => $"'{id}'"))}."
+                        });
+                }
+            }
+
+            // 在任何写入前收集完整占用错误，沿用 S16F16 原事务拒绝路径。
+            if (errors.Count != 0)
+                throw new S16F15CarrierConflictException(errors);
+        }
+
+        /// <summary>
+        /// 携带本批或活动 PJ 的 Carrier 冲突，交由 S16F16 专用异常分支逐条上报。
+        /// </summary>
+        private sealed class S16F15CarrierConflictException : InvalidOperationException
+        {
+            public IReadOnlyList<S16F16_error_data> Errors { get; }
+
+            /// <summary>
+            /// 保留独立错误条目，并提供用于设备日志的汇总文本。
+            /// </summary>
+            public S16F15CarrierConflictException(IReadOnlyList<S16F16_error_data> errors)
+                : base(string.Join("; ", errors.Select(error => error.ERRTEXT)))
+            {
+                Errors = errors;
+            }
         }
 
         /// <summary>

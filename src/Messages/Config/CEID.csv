@@ -1,9 +1,9 @@
 CEID,EventName,Category,Description
 1001,CarrierArrived,Report,花篮放上事件
 1002,CarrierRemoved,Report,花篮取走事件
-1003,CarrierLoaded,Report,花篮装载事件
-1004,CarrierUnloaded,Report,花篮卸载事件
-1005,MappingStart,Report,载具Mapping开始事件
+1003,CarrierLoaded,Report,花篮装载事件（暂无）
+1004,CarrierUnloaded,Report,花篮卸载事件（暂无）
+1005,MappingStart,Report,载具Mapping开始事件（暂无）
 1006,MappingCompleted,Report,载具Mapping完成事件
 1007,CarrierProcessing,Report,整盒晶圆检测开始事件
 1008,CarrierProcessed,Report,整盒晶圆检测完成事件

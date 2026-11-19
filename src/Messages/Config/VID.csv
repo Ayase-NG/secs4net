@@ -47,3 +47,4 @@ VID,Type,Name,Format,DefaultValue,Explain
 3014,DVID,LotID,A,,当前批次号
 3015,DVID,CarrierID,A,,当前晶圆盒编号
 3016,DVID,RecipeName,A,,当前Recipe名称(PPID)
+3017,DVID,ProcessStartTime,A,,当前晶圆开始检测时间

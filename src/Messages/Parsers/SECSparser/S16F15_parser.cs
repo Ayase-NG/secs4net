@@ -11,7 +11,7 @@ namespace SECSparser
     public static class S16F15_parser
     {
         /// <summary>
-        /// 校验整批 PJ 的列表层级、字段类型及标量数量后返回最小数据模型；不校验设备业务状态。
+        /// 校验整批 PJ 的结构和用于选择物料结构的 MF，再返回最小数据模型；不校验设备业务状态。
         /// </summary>
         /// <remarks>
         /// S16F15 PRJobMultiCreate 的 Carrier + Slot 形式如下；各变长列表仅展开一个元素：
@@ -51,7 +51,8 @@ namespace SECSparser
         /// .
         /// </code>
         /// 此处仅描述当前支持的物料结构，不涵盖其他 MF 对应的物料定义。
-        /// 示例采用 U4 DATAID、U1 SLOTID 和 B MF；解析器还兼容 U1/U2/U4/B 整数标量及旧 ASCII MF。
+        /// MF 仅支持 0D；除 B[1] 0x0D 外，还兼容旧 ASCII 写法 0D 和 0x0D。
+        /// DATAID 和 SLOTID 兼容 U1/U2/U4/B 整数标量。
         /// PRPAUSEEVENT 和配方参数的结构合法，不代表设备支持对应的暂停或参数修改能力。
         /// </remarks>
         public static S16F15_data Parse(SecsMessage msg)
@@ -82,6 +83,7 @@ namespace SECSparser
                 var path = $"PROCESS_JOB_LIST[{index}]";
                 var pjItem = pjList[index];
                 RequireList(pjItem, path, 6);
+                // 先确认 MF 支持 Carrier + Slot，再按此结构解析 MTRLSPEC。
                 var pj = new S16F15_process_job_data
                 {
                     PJID = ReadAscii(pjItem[0], $"{path}.PJID"),
@@ -188,15 +190,25 @@ namespace SECSparser
         }
 
         /// <summary>
-        /// 读取单字节 MF 为十六进制文本，同时兼容原有 ASCII 模型，暂不判断设备支持的 MF 值。
+        /// 校验 MF 编码及受支持的 0D 值，保留十六进制文本或原始 ASCII 文本。
         /// </summary>
         private static string ReadMaterialFormat(Item item, string path)
         {
-            if (item.Format == SecsFormat.Binary && item.Count == 1)
-                return item.FirstValue<byte>().ToString("X2", CultureInfo.InvariantCulture);
-            if (item.Format == SecsFormat.ASCII)
-                return item.GetString();
-            throw Invalid(path, "expected B[1] or legacy ASCII MF");
+            // 先校验编码，再区分合法编码中的不支持值。
+            var value = item.Format switch
+            {
+                SecsFormat.Binary when item.Count == 1 => item.FirstValue<byte>().ToString("X2", CultureInfo.InvariantCulture),
+                SecsFormat.ASCII => item.GetString(),
+                _ => throw Invalid(path, "expected B[1] or legacy ASCII MF")
+            };
+
+            // ASCII 兼容写法只在比较时去除空白、忽略大小写。
+            var materialFormat = value.Trim();
+            if (!string.Equals(materialFormat, "0D", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(materialFormat, "0x0D", StringComparison.OrdinalIgnoreCase))
+                throw Invalid(path, $"unsupported MF '{materialFormat}'; expected 0D (Carrier + Slot)");
+
+            return value;
         }
 
         /// <summary>

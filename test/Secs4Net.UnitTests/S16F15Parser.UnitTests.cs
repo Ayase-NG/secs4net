@@ -56,14 +56,16 @@ public class S16F15ParserUnitTests
     }
 
     /// <summary>
-    /// 仅校验结构，允许空列表或业务层才能判断的内容，不擅自执行设备能力校验。
+    /// 支持的 MF 下允许空列表或业务层才能判断的内容，并保留兼容 ASCII 写法。
     /// </summary>
-    [Fact]
-    public void Parse_StructurallyValidData_LeavesBusinessRulesToCaller()
+    [Theory]
+    [InlineData("0D")]
+    [InlineData(" 0x0d ")]
+    public void Parse_StructurallyValidData_LeavesBusinessRulesToCaller(string materialFormat)
     {
         using var request = new SecsMessage(16, 15)
         {
-            SecsItem = L(U4(0), L(L(A(""), A("legacy MF"), L(),
+            SecsItem = L(U4(0), L(L(A(""), A(materialFormat), L(),
                 L(U1(1), A(""), L(L(A("parameter"), L(U4(1), Boolean(true))))),
                 Boolean(false), L())))
         };
@@ -71,10 +73,28 @@ public class S16F15ParserUnitTests
         var data = S16F15_parser.Parse(request);
 
         data.ProcessJobs.Should().ContainSingle();
-        data.ProcessJobs[0].MF.Should().Be("legacy MF");
+        data.ProcessJobs[0].MF.Should().Be(materialFormat);
         data.ProcessJobs[0].Carriers.Should().BeEmpty();
         data.ProcessJobs[0].PRPROCESSSTART.Should().BeFalse();
         data.ProcessJobs[0].PRPAUSEEVENT.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// 不支持的 MF 必须先于物料列表结构错误被拒绝。
+    /// </summary>
+    [Theory]
+    [InlineData(false, "01")]
+    [InlineData(true, "0x01")]
+    public void Parse_UnsupportedMaterialFormat_FailsBeforeReadingMaterials(bool ascii, string expectedValue)
+    {
+        using var request = new SecsMessage(16, 15) { SecsItem = BuildRoot() };
+        Replace(request.SecsItem!, ascii ? A(expectedValue) : B(1), 1, 0, 1);
+        Replace(request.SecsItem!, A("not a material list"), 1, 0, 2);
+
+        Action parse = () => S16F15_parser.Parse(request);
+
+        parse.Should().Throw<InvalidOperationException>().WithMessage(
+            $"*PROCESS_JOB_LIST[0].MF: unsupported MF '{expectedValue}'; expected 0D*");
     }
 
     /// <summary>

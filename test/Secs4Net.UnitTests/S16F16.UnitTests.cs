@@ -144,6 +144,120 @@ public class S16F16UnitTests
     }
 
     /// <summary>
+    /// 批次中的 MF 不受支持时，返回字段错误且不保存任何 PJ 或占用去重键。
+    /// </summary>
+    [Fact]
+    public async Task Handle_UnsupportedMaterialFormat_ReturnsFieldErrorWithoutWriting()
+    {
+        var jobs = Substitute.For<IJobPlanStorage>();
+        var guard = Substitute.For<IIdempotencyGuard>();
+        var invalidJob = L(A("PJ2"), B(1), A("not a material list"),
+            L(U1(1), A("RECIPE1"), L()), Boolean(true), L());
+        // 异步取得不受支持的 MF 在原事务上的拒绝应答。
+        using var reply = await HandleAsync(L(BuildJob("PJ1"), invalidJob), jobs, guard);
+
+        reply.S.Should().Be(16);
+        reply.F.Should().Be(16);
+        reply.SecsItem![0].Count.Should().Be(0);
+        reply.SecsItem[1][0].FirstValue<bool>().Should().BeFalse();
+        reply.SecsItem[1][1].Count.Should().Be(1);
+        reply.SecsItem[1][1][0][1].GetString().Should().Contain("PROCESS_JOB_LIST[1].MF: unsupported MF '01'; expected 0D");
+        jobs.DidNotReceive().UpsertProcessJob(Arg.Any<ProcessJobPlan>());
+        guard.ReceivedCalls().Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// 跨 PJ 重复的 Carrier 分别返回错误；忽略大小写和首尾空白，槽位不同也不能共享。
+    /// </summary>
+    [Fact]
+    public async Task Handle_CarriersSharedAcrossJobs_ReturnsIndependentErrorsWithoutWriting()
+    {
+        var jobs = Substitute.For<IJobPlanStorage>();
+        var guard = Substitute.For<IIdempotencyGuard>();
+        var first = L(A("PJ1"), B(13), L(L(A("CARRIER1"), L(U1(1))), L(A("CARRIER2"), L(U1(1)))),
+            L(U1(1), A("RECIPE1"), L()), Boolean(true), L());
+        var second = L(A("PJ2"), B(13), L(L(A(" carrier1 "), L(U1(2))), L(A("carrier2"), L(U1(2)))),
+            L(U1(1), A("RECIPE1"), L()), Boolean(true), L());
+
+        // 异步取得跨 PJ Carrier 冲突的原事务应答。
+        using var reply = await HandleAsync(L(first, second), jobs, guard);
+
+        reply.SecsItem![0].Count.Should().Be(0);
+        reply.SecsItem[1][0].FirstValue<bool>().Should().BeFalse();
+        var errors = reply.SecsItem[1][1];
+        errors.Count.Should().Be(2);
+        errors[0][1].GetString().Should().Contain("CarrierID 'CARRIER1'").And.Contain("'PJ1'").And.Contain("'PJ2'");
+        errors[1][1].GetString().Should().Contain("CarrierID 'CARRIER2'").And.Contain("'PJ1'").And.Contain("'PJ2'");
+        jobs.DidNotReceive().UpsertProcessJob(Arg.Any<ProcessJobPlan>());
+        guard.ReceivedCalls().Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// 活动 PJ 的多个 Carrier 占用分别拒绝，不因槽位不同或已启动而放行，也不写入本批的无冲突 PJ。
+    /// </summary>
+    [Fact]
+    public async Task Handle_ActiveCarrierConflicts_ReturnsIndependentErrorsWithoutWriting()
+    {
+        var jobs = Substitute.For<IJobPlanStorage>();
+        var guard = Substitute.For<IIdempotencyGuard>();
+        jobs.GetAllProcessJobs().Returns(new[]
+        {
+            new ProcessJobPlan
+            {
+                PJID = "ACTIVE", AutoStarted = true,
+                Carriers = new List<ProcessJobCarrierPlan>
+                {
+                    new() { CarrierId = " carrier1 ", Slots = new List<uint> { 2 } },
+                    new() { CarrierId = "carrier2", Slots = new List<uint> { 2 } }
+                }
+            }
+        });
+        var requested = L(A("PJ1"), B(13), L(L(A("CARRIER1"), L(U1(1))), L(A(" CARRIER2 "), L(U1(1)))),
+            L(U1(1), A("RECIPE1"), L()), Boolean(true), L());
+
+        // 异步检查后续请求与存储中活动 PJ 的冲突，而不只检查本批重复。
+        using var reply = await HandleAsync(L(BuildJob("FREE"), requested), jobs, guard);
+
+        reply.SecsItem![0].Count.Should().Be(0);
+        reply.SecsItem[1][0].FirstValue<bool>().Should().BeFalse();
+        var errors = reply.SecsItem[1][1];
+        errors.Count.Should().Be(2);
+        errors[0][1].GetString().Should().Contain("CarrierID 'CARRIER1'").And.Contain("PJ 'PJ1'").And.Contain("'ACTIVE'");
+        errors[1][1].GetString().Should().Contain("CarrierID 'CARRIER2'").And.Contain("PJ 'PJ1'").And.Contain("'ACTIVE'");
+        jobs.DidNotReceive().UpsertProcessJob(Arg.Any<ProcessJobPlan>());
+        guard.ReceivedCalls().Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// 前一请求创建的计划参与后一请求的 Carrier 占用检查，其他 Carrier 仍允许创建。
+    /// </summary>
+    [Fact]
+    public async Task Handle_SequentialRequests_RejectsOccupiedCarrierAndAcceptsFreeCarrier()
+    {
+        var jobs = Substitute.For<IJobPlanStorage>();
+        var saved = new List<ProcessJobPlan>();
+        jobs.GetAllProcessJobs().Returns(_ => saved.ToArray());
+        jobs.When(storage => storage.UpsertProcessJob(Arg.Any<ProcessJobPlan>()))
+            .Do(call => saved.Add(call.Arg<ProcessJobPlan>()));
+
+        // 异步创建首个 PJ 并保存其 Carrier 占用。
+        using var first = await HandleAsync(L(BuildJob("PJ1")), jobs);
+        first.SecsItem![1][0].FirstValue<bool>().Should().BeTrue();
+        var conflicting = L(A("OTHER"), B(13), L(L(A("CARRIER1"), L(U1(2)))),
+            L(U1(1), A("RECIPE1"), L()), Boolean(true), L());
+        // 异步验证下一次创建不能使用前一 PJ 的 Carrier。
+        using var rejected = await HandleAsync(L(conflicting), jobs);
+        rejected.SecsItem![1][0].FirstValue<bool>().Should().BeFalse();
+        rejected.SecsItem[1][1][0][1].GetString().Should().Contain("PJ 'OTHER'").And.Contain("'PJ1'");
+        saved.Should().ContainSingle();
+
+        // 异步验证已有活动 PJ 不影响其他 Carrier 的正常创建。
+        using var accepted = await HandleAsync(L(BuildJob("PJ2")), jobs);
+        accepted.SecsItem![1][0].FirstValue<bool>().Should().BeTrue();
+        saved.Select(plan => plan.PJID).Should().Equal("PJ1", "PJ2");
+    }
+
+    /// <summary>
     /// 保存中途失败时只列出已确认的 PJID，并返回失败和真实错误原因。
     /// </summary>
     [Fact]
@@ -188,13 +302,15 @@ public class S16F16UnitTests
     public async Task Handle_DuplicateWithConfirmedPlan_ReturnsSuccess()
     {
         var jobs = Substitute.For<IJobPlanStorage>();
+        var existing = new ProcessJobPlan
+        {
+            PJID = " pj1 ", RecipeId = "RECIPE1", AutoStart = true, AutoStarted = true,
+            Carriers = new List<ProcessJobCarrierPlan> { new() { CarrierId = "CARRIER1", Slots = new List<uint> { 1 } } }
+        };
+        jobs.GetAllProcessJobs().Returns(new[] { existing });
         jobs.TryGetProcessJob("PJ1", out Arg.Any<ProcessJobPlan>()).Returns(call =>
         {
-            call[1] = new ProcessJobPlan
-            {
-                PJID = "PJ1", RecipeId = "RECIPE1", AutoStart = true, AutoStarted = true,
-                Carriers = new List<ProcessJobCarrierPlan> { new() { CarrierId = "CARRIER1", Slots = new List<uint> { 1 } } }
-            };
+            call[1] = existing;
             return true;
         });
         var guard = new InMemoryIdempotencyGuard();
@@ -206,6 +322,7 @@ public class S16F16UnitTests
         reply.SecsItem[1][0].FirstValue<bool>().Should().BeTrue();
         reply.SecsItem[1][1].Count.Should().Be(0);
         jobs.DidNotReceive().UpsertProcessJob(Arg.Any<ProcessJobPlan>());
+        existing.AutoStarted.Should().BeTrue();
     }
 
     /// <summary>
@@ -278,7 +395,7 @@ public class S16F16UnitTests
     /// <summary>
     /// 构建一个满足当前创建业务约束的 PJ。
     /// </summary>
-    private static Item BuildJob(string id) => L(A(id), B(13), L(L(A("CARRIER1"), L(U1(1)))),
+    private static Item BuildJob(string id) => L(A(id), B(13), L(L(A(id == "PJ1" ? "CARRIER1" : $"CARRIER-{id}"), L(U1(1)))),
         L(U1(1), A("RECIPE1"), L()), Boolean(true), L());
 
     /// <summary>

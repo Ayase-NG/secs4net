@@ -1,4 +1,5 @@
 using Google.Protobuf;
+using Google.Protobuf.Collections;
 using Grpc.Core;
 using Grpc.Net.Client;
 using GY.EFEM;
@@ -88,10 +89,11 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
         var ceid = _ceidMap.TryGetCeid(eventName, out var mappedCeid) ? mappedCeid : 0;
         // 打印入站 gRPC 通用事件参数，便于排查 CEID 对应值是否正确传入。
         _logger.LogInformation(
-            "gRPC IN ReportEvent. Peer={Peer}, CEID={CEID}, Params={Params}",
+            "gRPC IN ReportEvent. Peer={Peer}, CEID={CEID}, Params={Params}, TypeParams={TypeParams}",
             context.Peer,
             ceid,
-            ToParameterLogText(request.Parameters));
+            ToParameterLogText(request.Parameters),
+            ToParameterLogText(request.TypedParameters));
 
         // 通用事件上报前先刷新 VID 动态值表，为S1F11和S6F11提供数据。
         UpdateVidRuntimeValues(request.Parameters);
@@ -172,7 +174,6 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
         }
         return new ReportReply { Success = true, Code = 0, Message = "OK" };
     }
-
 
     public override async Task<AlarmReply> ReportAlarm(AlarmReportRequest request, ServerCallContext context)
     {
@@ -654,5 +655,22 @@ public sealed class ReportGrpc : ReportGrpcService.ReportGrpcServiceBase
         return string.Join(", ", parameters
             .OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
             .Select(kv => $"{kv.Key}={kv.Value}"));
+    }
+
+    /// <summary>
+    /// 将类型化参数按名称排序并输出 Protobuf JSON，保留 oneof 值、SECS 格式及嵌套列表用于诊断。
+    /// </summary>
+    private static string ToParameterLogText(MapField<string, EventParameterValue>? typedParameters)
+    {
+        // 空参数沿用字符串参数的占位格式，避免日志格式化中断事件上报。
+        if (typedParameters is null || typedParameters.Count == 0)
+        {
+            return "<empty>";
+        }
+
+        // 使用 Protobuf 序列化规则处理长整数、布尔、Base64 二进制及递归列表，不进行业务类型转换。
+        return string.Join(", ", typedParameters
+            .OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(kv => $"{kv.Key}={(kv.Value is null ? "<null>" : JsonFormatter.Default.Format(kv.Value))}"));
     }
 }

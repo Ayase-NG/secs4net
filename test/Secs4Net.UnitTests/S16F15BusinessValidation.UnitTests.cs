@@ -300,12 +300,13 @@ public class S16F15BusinessValidationUnitTests
     }
 
     /// <summary>
-    /// 构建合法六字段 PJ，只覆盖指定的业务参数；配方参数始终保持结构合法。
+    /// 构建合法六字段 PJ，默认按 PJID 区分 Carrier，避免跨 PJ 冲突遮蔽指定的业务错误。
     /// </summary>
     private static Item BuildJob(string id = "PJ1", string recipe = "RECIPE1", Item? materialFormat = null,
         Item? carriers = null, bool autoStart = true, Item? pause = null, Item? parameters = null)
     {
-        return L(A(id), materialFormat ?? B(13), carriers ?? L(L(A("CARRIER1"), L(U1(1), U1(2)))),
+        var carrierId = string.Equals(id.Trim(), "PJ1", StringComparison.OrdinalIgnoreCase) ? "CARRIER1" : $"CARRIER-{id.Trim()}";
+        return L(A(id), materialFormat ?? B(13), carriers ?? L(L(A(carrierId), L(U1(1), U1(2)))),
             L(U1(1), A(recipe), parameters ?? L()), Boolean(autoStart), pause ?? L());
     }
 
